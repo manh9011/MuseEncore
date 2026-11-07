@@ -1,0 +1,1529 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+
+@font-face {
+    font-family: "MusescoreIcon";
+    src: url("./assets/MusescoreIcon.ttf") format("truetype");
+    font-display: block;
+}
+
+/* the music font for time signatures and notes in the New Score dialog (from the fonts directory) */
+@font-face {
+    font-family: "Leland";
+    src: url("/leland/Leland.otf") format("opentype");
+    font-display: block;
+}
+
+:root {
+    color-scheme: light dark;
+    --bg: #eceef1;
+    --panel: #ffffff;
+    --fg: #1d2127;
+    --muted: #6b7280;
+    --border: #dfe2e7;
+    --hover: #eef0f3;
+    --active: #e1e7f5;
+    --accent: #2a6ad8;
+    --page-shadow: 0 1px 2px rgba(15, 23, 42, .08), 0 4px 16px rgba(15, 23, 42, .10);
+    --radius: 6px;
+    --page-gap: 24px;
+    --backdrop: rgba(15, 23, 42, .18);
+    --danger: #d33a2c;
+    --selected: #d5e2fb;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1b1d21;
+        --panel: #26292e;
+        --fg: #e7e9ec;
+        --muted: #9aa1ab;
+        --border: #363a41;
+        --hover: #31353b;
+        --active: #2f3a50;
+        --accent: #6c9cf2;
+        --page-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 20px rgba(0, 0, 0, .35);
+        --backdrop: rgba(0, 0, 0, .45);
+        --danger: #e5574a;
+        --selected: #2f4670;
+    }
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+}
+
+/* ---- app chrome: menu bar, tabs, toolbar docks ---- */
+
+#app-root { display: flex; flex: 1; min-height: 0; min-width: 0; }
+
+
+/* Vue structural corrections; retain original React application geometry. */
+.app-root { display: flex; flex-direction: column; width: 100vw; height: 100vh; min-width: 0; min-height: 0; overflow: hidden; }
+.app-root > main { position: relative; inset: auto; display: flex; flex: 1 1 auto; width: auto; height: auto; min-width: 0; min-height: 0; }
+.app-root > main > .home { flex: 1 1 auto; }
+.app-root > main > .score-workspace { display: flex; flex-direction: row; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.score-workspace > .score-viewport-host { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.score-workspace #viewport { position: absolute; inset: 0; width: auto; height: auto; }
+.toolbars-rows { display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap; gap: 8px; min-width: 0; min-height: 42px; padding: 4px 8px; overflow-x: auto; }
+.toolbars-rows > div { flex: 0 0 auto; }
+.toolbars-rows > div:first-child { flex: 1 1 0%; overflow-x: auto; min-width: 0; }
+.toolbars-rows .playback-toolbar { flex: 0 0 auto; }
+.status-bar { min-height: 30px; flex: none; }
+.score-workspace > .side-chrome { height: 100%; flex: 0 0 auto; }
+.score-workspace > .side-chrome > .panel-dock { height: 100%; flex: 0 0 auto; }
+.score-workspace > .score-area { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.score-area > .notation-tabs { flex: 0 0 32px; }
+.score-area > .score-viewport-host { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.panel-dock { min-width: 0; }
+.chrome:has(.toolbars-rows) { flex: 0 0 auto; }
+body > [data-reka-popper-content-wrapper]:has(.speed-popup) { z-index: 15 !important; }
+.chrome .toolbar-rows { display: flex; flex-direction: column; flex: 0 0 auto; }
+.chrome .toolbar-rows > .toolbar-dock { min-height: 40px; border-top: 1px solid var(--border); }
+.toolbar-dock > .toolbar > .toolbar { display: contents; }
+.bottom-chrome > .statusbar { flex: 0 0 auto; }
+.chrome .toolbars-rows { height: 41px; min-height: 41px; flex: 0 0 41px; }
+.score-workspace { overflow: visible; }
+#app-root > main { flex: 1 1 0%; }
+.score-area > .score-viewport-host #viewport { top: 0; bottom: 0; height: auto; }
+.score-viewport-host { min-width: 0; min-height: 0; }
+
+/* Preserve original React home geometry for Vue-authored markup. */
+.home-header h1 { font-size: 24px; line-height: 1.4; font-weight: 600; }
+.home-header p { margin: 0; }
+.home .home-empty { display: contents; }
+.home .home-hint { margin: 24px 0 0; }
+.home .score-grid { gap: 28px 24px; }
+@media (max-width: 640px) {
+  .home .score-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 20px 16px; }
+}
+.home h1, .home h2:not(dialog h2), .home h3, .home p:not(dialog p):not(.home-hint):not(.no-results) { margin-block: 0; }
+/* Nuxt UI Teleports modals to body, outside app-root. Keep utility layout rules active there. */
+body > [role="dialog"] { position: fixed; inset: 0; z-index: 100; width: 100vw; height: 100vh; max-width: none; max-height: none; overflow: auto; }
+body > [data-dismissable-layer][role="dialog"] { position: fixed; inset: 0; z-index: 100; width: 100vw; height: 100vh; max-width: none; max-height: none; overflow: auto; }
+body > [role="dialog"] > div:first-child { flex: none; min-height: 64px; }
+body > [role="dialog"] > div:last-child { flex: none; min-height: 50px; }
+body > [role="dialog"] > div:nth-child(2) { flex: 1 1 0%; min-height: 0; overflow: auto; }
+body > [role="dialog"] .grid.grid-cols-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+body > [role="dialog"] .grid.grid-cols-12 > :nth-child(1) { grid-column: span 4; }
+body > [role="dialog"] .grid.grid-cols-12 > :nth-child(2) { grid-column: span 1; }
+body > [role="dialog"] .grid.grid-cols-12 > :nth-child(3) { grid-column: span 7; }
+body > [role="dialog"] .grid.grid-cols-12 > * { min-width: 0; min-height: 0; overflow: hidden; }
+body > [role="dialog"] .grid.grid-cols-12 .list { overflow: auto; }
+body > [role="dialog"] .choose-instruments, body > [role="dialog"] .choose-template { min-height: 0; }
+body > [role="dialog"] > * { box-sizing: border-box; }
+
+.chrome {
+    flex-shrink: 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    z-index: 2;
+}
+
+.menubar {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    height: 28px;
+    padding: 0 6px;
+    background: var(--bg);
+}
+
+.menubar > button {
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 4px;
+}
+
+.menubar > button:hover, .menubar > button.open { background: var(--hover); }
+
+.menu-popup {
+    position: fixed;
+    z-index: 20;
+    min-width: 220px;
+    max-height: calc(100vh - 8px);
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .2);
+    outline: none;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px 0 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+    cursor: default;
+    outline: none;
+}
+
+.menu-item.active { background: var(--selected); }
+.menu-item[aria-disabled="true"] { color: var(--muted); opacity: .6; }
+.menu-check, .menu-arrow { width: 16px; font-family: "MusescoreIcon"; font-size: 12px; text-align: center; flex-shrink: 0; }
+.menu-title { flex: 1; }
+.menu-shortcut { margin-left: 24px; color: var(--muted); font-size: 12px; }
+.menu-separator { height: 1px; margin: 4px 6px; background: var(--border); }
+
+.tabs-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    min-height: 40px;
+    padding: 0 8px;
+    gap: 4px 12px;
+}
+
+.toolbar-dock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    min-width: 0;
+}
+
+.toolbar-dock.dock-main { flex: 1; justify-content: flex-end; min-height: 40px; }
+.toolbar-dock.dock-top { padding: 3px 8px; border-top: 1px solid var(--border); }
+.toolbar-dock.dock-bottom { flex-shrink: 0; padding: 3px 8px; background: var(--panel); border-top: 1px solid var(--border); }
+.toolbar-dock.drag-active { min-height: 40px; outline: 1px dashed var(--border); outline-offset: -2px; }
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1px;
+    min-height: 34px;
+    padding: 2px 4px 2px 0;
+    border-radius: var(--radius);
+}
+
+.toolbar.dragging { opacity: .4; }
+
+.toolbar-grip {
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 28px;
+    font-family: "MusescoreIcon";
+    font-size: 14px;
+    color: var(--muted);
+    cursor: grab;
+    touch-action: none;
+}
+
+.toolbar-grip span { transform: rotate(90deg); }
+.toolbar-grip:hover { color: var(--fg); }
+.toolbar-grip:active { cursor: grabbing; }
+
+.drop-marker {
+    align-self: stretch;
+    width: 3px;
+    min-height: 30px;
+    border-radius: 2px;
+    background: var(--accent);
+}
+
+.tool-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 4px;
+    border-radius: var(--radius);
+}
+
+.tool-button.with-title { padding: 0 8px; }
+.tool-button.bold { font-weight: 600; }
+.tool-button:hover:not(:disabled) { background: var(--hover); }
+.tool-button:active:not(:disabled) { background: var(--active); }
+.tool-button:disabled { opacity: .35; cursor: default; }
+.tool-button[aria-pressed="true"] { background: var(--active); color: var(--accent); }
+.tool-button.menu-arrow-button { min-width: 14px; width: 14px; padding: 0; margin-left: -2px; }
+.tool-icon { font-family: "MusescoreIcon"; font-size: 16px; line-height: 1; }
+.tool-icon.small { font-size: 10px; }
+.tool-separator { width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
+.zoom-select { height: 28px; }
+
+.notation-tabs {
+    display: flex;
+    flex-shrink: 0;
+    height: 32px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+}
+
+.notation-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 280px;
+    padding: 0 4px 0 12px;
+    border-right: 1px solid var(--border);
+    border-bottom: 2px solid var(--accent);
+}
+
+.notation-tab-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notation-tab .icon { width: 24px; height: 24px; font-size: 12px; }
+
+.score-area {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.score-area[hidden], .notation-row[hidden] { display: none; }
+
+.viewport-host {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+button.icon {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    font-family: "MusescoreIcon";
+    font-size: 16px;
+    line-height: 1;
+}
+
+button.icon.text { font-family: inherit; font-weight: 600; font-size: 14px; }
+
+button.icon:hover:not(:disabled) { background: var(--hover); }
+button.icon:active:not(:disabled) { background: var(--active); }
+button.icon:disabled { opacity: .35; cursor: default; }
+button.icon[aria-pressed="true"], button.icon[aria-checked="true"] { background: var(--active); color: var(--accent); }
+
+#viewport:focus { outline: none; }
+
+button:focus-visible, select:focus-visible, input:focus-visible, li[tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.segmented { display: flex; gap: 2px; }
+
+select {
+    height: 30px;
+    /* own arrow: the native one sits at the right border (padding does not move it) */
+    padding: 0 24px 0 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    appearance: none;
+    background: var(--panel);
+    background-image: linear-gradient(45deg, transparent 50%, var(--fg) 50%), linear-gradient(135deg, var(--fg) 50%, transparent 50%);
+    background-position: right 13px center, right 9px center;
+    background-size: 4px 4px;
+    background-repeat: no-repeat;
+    color: var(--fg);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+.page-info {
+    min-width: 64px;
+    text-align: center;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- score view ---- */
+
+#viewport {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+}
+
+#viewport.hand { cursor: grab; }
+#viewport.hand.dragging { cursor: grabbing; user-select: none; }
+
+/* --pan-x/--pan-y (set by the script, almost a viewport): the pages can be moved until only a strip is visible */
+#pages {
+    display: flex;
+    gap: var(--page-gap);
+    padding: calc(var(--page-gap) + var(--pan-y, 0px)) calc(var(--page-gap) + var(--pan-x, 0px));
+    width: max-content;
+    min-width: 100%;
+    min-height: 100%;
+}
+
+/* #pages is at least as large as the viewport, so centering never clips */
+#pages.horizontal { flex-direction: row; align-items: flex-start; justify-content: center; }
+#pages.vertical { flex-direction: column; align-items: center; }
+
+/* a spread holds two facing pages without gap */
+.spread { display: flex; flex-shrink: 0; }
+
+.page {
+    position: relative;
+    flex-shrink: 0;
+    /* clip, not hidden: the page must not be a scroll container (the sticky continuous panel) */
+    overflow: clip;
+    background: #fff;
+    box-shadow: var(--page-shadow);
+}
+
+.page canvas { position: absolute; display: block; }
+.page .continuous-panel canvas { left: 0; top: 0; }
+.page canvas.shadow-note { pointer-events: none; }
+/* the continuous view (horizontal): the panel at the left edge of the view (sticky: the browser keeps it there while
+   scrolling), set off by a soft shadow */
+.page .continuous-panel {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+    box-shadow: 6px 0 18px -6px rgba(0, 0, 0, .3);
+}
+
+.page.placeholder { visibility: hidden; }
+
+/* ---- drag and drop of files ---- */
+
+body.dragover::after {
+    content: "";
+    position: fixed;
+    /* the area of the drop (set by the script): fixed, so it does not scroll with a large score */
+    left: calc(var(--drop-left, 0px) + 8px);
+    top: calc(var(--drop-top, 0px) + 8px);
+    width: calc(var(--drop-width, 100vw) - 16px);
+    height: calc(var(--drop-height, 100vh) - 16px);
+    box-sizing: border-box;
+    border: 2px dashed var(--accent);
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.muted { color: var(--muted); }
+
+
+/* ---- full screen: the menu bar and toolbars (top), the bottom toolbar dock and status bar (bottom) and the panels
+   (left, right to left: right) are collapsed and slide in at their edge ---- */
+
+.side-chrome { display: flex; flex-shrink: 0; min-height: 0; }
+.bottom-chrome { flex-shrink: 0; }
+
+.edge-trigger { display: none; }
+
+body.fullscreen .edge-trigger { display: block; position: fixed; z-index: 4; }
+body.fullscreen #toolbar-trigger { top: 0; left: 0; right: 0; height: 8px; }
+body.fullscreen #bottom-trigger { bottom: 0; left: 0; right: 0; height: 8px; }
+body.fullscreen #side-trigger { top: 0; bottom: 0; inset-inline-start: 0; width: 8px; }
+
+body.fullscreen .chrome,
+body.fullscreen .bottom-chrome,
+body.fullscreen .side-chrome {
+    position: fixed;
+    z-index: 5;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .15);
+    transition: transform .2s ease;
+}
+
+body.fullscreen .chrome { top: 0; left: 0; right: 0; transform: translateY(-100%); }
+body.fullscreen .bottom-chrome { bottom: 0; left: 0; right: 0; transform: translateY(100%); }
+/* below the top and bottom bars when they are shown too */
+body.fullscreen .side-chrome { top: 0; bottom: 0; inset-inline-start: 0; z-index: 4; background: var(--panel); transform: translateX(-100%); }
+[dir="rtl"] body.fullscreen .side-chrome { transform: translateX(100%); }
+body.fullscreen .bottom-chrome:empty, body.fullscreen .side-chrome:empty { box-shadow: none; }
+
+body.fullscreen.toolbar-shown .chrome,
+body.fullscreen.bottom-shown .bottom-chrome,
+body.fullscreen.panels-shown .side-chrome { transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    body.fullscreen .chrome, body.fullscreen .bottom-chrome, body.fullscreen .side-chrome { transition: none; }
+}
+
+/* ---- busy overlay ---- */
+
+.busy {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: var(--backdrop);
+    cursor: progress;
+    /* not shown at all for quick loads */
+    animation: busy-in .2s ease .15s both;
+}
+
+.busy-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: min(280px, 100%);
+    max-width: 100%;
+    padding: 24px 32px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .2);
+    text-align: center;
+}
+
+.busy-title {
+    max-width: 40ch;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* a transform animation keeps running while the main thread is busy with the layout */
+.spinner {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 8px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+}
+
+/* the view mode changes: the score is greyed out with a spinner (set at once: no animation runs while the layout
+   blocks the page) */
+.viewport-host.view-switching #pages { opacity: .35; }
+.view-switch-indicator {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+}
+.view-switch-indicator .spinner { margin: 0; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes busy-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 2.4s; }
+}
+
+/* ---- status bar ---- */
+
+.statusbar {
+    display: flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 2px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.statusbar.error { color: #d33; }
+.statusbar #status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.statusbar-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+}
+.statusbar-button:hover, .statusbar-button[aria-expanded="true"] { background: var(--hover, rgba(127, 127, 127, .15)); }
+.statusbar-button:disabled { opacity: .5; cursor: default; background: transparent; }
+.statusbar-separator { flex: none; width: 1px; height: 16px; margin: 0 4px; background: var(--border); }
+/* the check box of MuseScore's ConcertPitchControl */
+.statusbar-checkbox {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border: 1px solid var(--muted);
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+.statusbar-button[aria-checked="true"] .statusbar-checkbox {
+    border-color: var(--accent);
+    background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='white' stroke-width='1.6'/%3E%3C/svg%3E") center / 10px no-repeat;
+}
+
+/* the continuous views: one long page without page border (NotationPainting::isPaintPageBorder) */
+#pages.continuous .page { box-shadow: none; }
+
+/* ---- help dialog ---- */
+
+dialog {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    background: var(--panel);
+    color: var(--fg);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+}
+
+dialog::backdrop { background: rgba(0, 0, 0, .25); }
+dialog h2 { margin: 0 0 12px; font-size: 16px; }
+dialog table { border-collapse: collapse; }
+dialog td { padding: 4px 16px 4px 0; vertical-align: top; }
+dialog form { margin-top: 16px; text-align: right; }
+
+kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: center;
+}
+
+button.primary, button.secondary {
+    min-height: 30px;
+    padding: 5px 16px;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #fff;
+    white-space: nowrap;
+}
+
+button.secondary { background: var(--hover); color: var(--fg); border: 1px solid var(--border); }
+button.secondary:hover:not(:disabled) { background: var(--active); }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button.primary.danger { background: var(--danger); }
+button.primary:disabled, button.secondary:disabled { opacity: .45; cursor: default; }
+
+/* ---- form controls ---- */
+
+input[type="text"], input[type="search"], input[type="number"] {
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--fg);
+    font: inherit;
+    min-width: 0;
+}
+
+input[type="number"] { width: 72px; font-variant-numeric: tabular-nums; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); margin: 0; }
+
+.icon-glyph { font-family: "MusescoreIcon"; font-size: 16px; line-height: 1; }
+.icon-glyph.big { font-size: 24px; }
+.smufl { font-family: "Leland"; font-size: 22px; line-height: 1; }
+
+.search {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search .icon-glyph {
+    position: absolute;
+    left: 8px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.search input { width: 100%; padding-left: 30px; }
+
+.segmented.text button {
+    padding: 4px 14px;
+    border-radius: var(--radius);
+}
+
+.segmented.text button[aria-checked="true"] { background: var(--active); color: var(--accent); }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ---- tabs Home / Score (in the row of the main toolbars, like MuseScore) ---- */
+
+.app-tabs { display: flex; align-self: stretch; }
+.app-tabs [role="tablist"] { display: flex; gap: 2px; }
+
+.app-tabs [role="tab"] {
+    padding: 0 14px;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.app-tabs [role="tab"]:hover:not(:disabled) { color: var(--fg); }
+.app-tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.app-tabs [role="tab"]:disabled { opacity: .4; cursor: default; }
+
+/* ---- home screen ---- */
+
+.home {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--panel);
+}
+
+.home-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    padding: 24px 32px 12px;
+}
+
+.home-header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+.home-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.home-tools .search { width: min(260px, 50vw); }
+
+.home-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 32px 8px;
+    padding: 6px 6px 6px 12px;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    color: var(--fg);
+}
+
+.home-error span { flex: 1; }
+
+.home-body {
+    flex: 1;
+    overflow: auto;
+    padding: 12px 32px 24px;
+}
+
+.home-hint { max-width: 60ch; margin: 24px 0 0; }
+.no-results { margin: 24px 0; }
+
+.score-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+    gap: 28px 24px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.score-grid li { position: relative; }
+
+.score-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    padding: 0;
+    text-align: left;
+    border-radius: var(--radius);
+}
+
+.score-card .thumb {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 172 / 224;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+    transition: box-shadow .15s, border-color .15s;
+}
+
+.score-card .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.score-card:hover .thumb { border-color: var(--accent); box-shadow: 0 4px 14px rgba(15, 23, 42, .16); }
+
+.score-card.new .thumb { aspect-ratio: 172 / 224; background: var(--bg); border-style: dashed; box-shadow: none; }
+.new-plus { font-family: "MusescoreIcon"; font-size: 36px; color: var(--accent); }
+
+.thumb-placeholder { font-family: "MusescoreIcon"; font-size: 40px; color: #c4c9d1; }
+
+.card-name {
+    margin-top: 8px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-time { font-size: 12px; }
+
+.score-grid .remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    opacity: 0;
+    transition: opacity .15s;
+}
+
+.score-grid li:hover .remove, .score-grid .remove:focus-visible { opacity: 1; }
+
+@media (hover: none) {
+    .score-grid .remove { opacity: 1; }
+}
+
+.score-list { width: 100%; border-collapse: collapse; }
+.score-list th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.score-list td { padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.score-list td:first-child { width: 100%; max-width: 0; }
+.score-list tr:hover td { background: var(--hover); }
+
+.list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 2px 0;
+    text-align: left;
+    overflow: hidden;
+}
+
+.list-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.list-thumb {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 42px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: #fff;
+}
+
+.list-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.list-thumb .thumb-placeholder { font-size: 18px; }
+.list-thumb.new { background: var(--bg); border-style: dashed; font-family: "MusescoreIcon"; color: var(--accent); }
+
+.home-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 32px;
+    border-top: 1px solid var(--border);
+}
+
+.home-footer .spacer { flex: 1; }
+
+/* ---- dialogs ---- */
+
+dialog.confirm { width: min(420px, calc(100vw - 32px)); }
+
+/* the migration dialog (MigrationDialog.qml: 491 px wide, 590 px for scores older than 3.6.2) */
+dialog.migration { width: min(491px, calc(100vw - 32px)); padding: 0; }
+dialog.migration.pre362 { width: min(590px, calc(100vw - 32px)); }
+.migration-content { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+dialog.migration.pre362 .migration-content { gap: 24px; }
+.migration-content h2 { margin: 0 0 8px; font-size: 14px; }
+.migration-content p { margin: 0; }
+.migration-image {
+    display: grid;
+    place-items: center;
+    height: 178px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #f9f9f9;
+}
+.migration-image img { height: 158px; max-width: 100%; object-fit: contain; }
+.migration-options { display: flex; flex-direction: column; gap: 8px; }
+.migration-info { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+dialog.migration label.check { white-space: normal; }
+.migration-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+}
+dialog.confirm p { margin: 0; color: var(--muted); }
+
+.dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+dialog.new-score {
+    width: min(1040px, calc(100vw - 32px));
+    height: min(700px, calc(100vh - 32px));
+    padding: 0;
+    overflow: hidden;
+}
+
+dialog.new-score[open] { display: flex; flex-direction: column; }
+
+.dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 12px 4px 24px;
+}
+
+.dialog-header h2 { margin: 0; }
+
+.dialog-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.dialog-tabs [role="tab"] {
+    padding: 8px 12px;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.dialog-tabs [role="tab"][aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+
+.dialog-page {
+    flex: 1;
+    min-height: 0;
+    padding: 16px 24px;
+    overflow: auto;
+}
+
+dialog.new-score .dialog-buttons {
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.column h3, .score-info h3 { margin: 0; font-size: 13px; font-weight: 600; }
+
+.list {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 4px;
+    overflow: auto;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+
+.list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: default;
+    user-select: none;
+}
+
+.list li[role="option"]:hover { background: var(--hover); }
+.list li[aria-selected="true"] { background: var(--selected); }
+.list li:focus-visible { outline-offset: -2px; }
+.list .item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list li select { height: 24px; max-width: 45%; }
+.list .empty-item { white-space: normal; }
+
+.badge {
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--active);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.choose-instruments {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(200px, 1.6fr) auto minmax(200px, 1.6fr);
+    gap: 12px;
+    height: 100%;
+}
+
+/* InstrumentsDialog "Select instrument" (canSelectMultipleInstruments = false: 600 px, families and instruments) */
+.choose-instruments.single { grid-template-columns: minmax(150px, 1fr) minmax(200px, 1.6fr); }
+dialog.select-instrument { width: min(600px, calc(100vw - 32px)); }
+
+.add-column { display: flex; align-items: center; }
+.add-column .icon { border: 1px solid var(--border); }
+.description { min-height: 3.6em; margin: 0; font-size: 12px; overflow: auto; }
+.list-actions { display: flex; justify-content: flex-end; gap: 2px; }
+
+.choose-template {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(180px, 1.2fr) minmax(260px, 2fr);
+    gap: 12px;
+    height: 100%;
+}
+
+.preview-column { min-height: 0; }
+
+.template-preview {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    overflow: auto;
+    border-radius: var(--radius);
+    background: var(--bg);
+}
+
+.preview-page { display: block; flex-shrink: 0; background: #fff; box-shadow: var(--page-shadow); }
+
+.spinner.small { width: 24px; height: 24px; margin: 24px; }
+
+/* ---- score information ---- */
+
+.score-info { display: flex; flex-direction: column; gap: 16px; }
+
+.score-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.dropdown { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.field-label { color: var(--muted); font-size: 12px; }
+
+.dropdown-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 56px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    text-align: left;
+}
+
+.dropdown-button:hover { background: var(--hover); }
+.dropdown-button[aria-expanded="true"] { border-color: var(--accent); }
+.dropdown-value { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.value-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chevron { font-family: "MusescoreIcon"; color: var(--muted); }
+
+svg.timesig { flex-shrink: 0; overflow: visible; font-family: "Leland"; fill: currentColor; }
+.tempo-value { display: inline-flex; align-items: baseline; gap: 4px; }
+.tempo-value .smufl { font-size: 20px; line-height: 1; position: relative; top: -2px; }
+
+.dropdown-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 100%;
+    margin-top: 4px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+}
+
+.score-options > .dropdown:nth-child(n+3) .dropdown-panel { left: auto; right: 0; }
+
+.key-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 76px);
+    gap: 4px;
+}
+
+.key-grid button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 2px;
+    border-radius: var(--radius);
+}
+
+.key-grid button:hover { background: var(--hover); }
+.key-grid button[aria-checked="true"] { background: var(--selected); }
+.key-name { font-size: 11px; text-align: center; }
+
+.radio-rows { display: flex; flex-direction: column; gap: 10px; }
+.radio-rows label, label.check { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.fraction-input { display: inline-flex; align-items: center; gap: 6px; }
+.fraction-input input { width: 60px; }
+.tempo-row { display: flex; align-items: center; gap: 8px; }
+.indent { padding-left: 24px; }
+.hint { margin: 0; font-size: 12px; max-width: 32ch; }
+
+label.field { display: flex; flex-direction: column; gap: 4px; }
+label.field > span { color: var(--muted); font-size: 12px; }
+
+.general-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+}
+
+.general-info .wide { grid-column: 1 / -1; }
+
+/* ---- small screens ---- */
+
+@media (max-width: 640px) {
+    .menubar { overflow-x: auto; }
+    .tool-button { min-width: 28px; }
+    :root { --page-gap: 12px; }
+    .home-header, .home-body, .home-footer { padding-left: 16px; padding-right: 16px; }
+    .score-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 20px 16px; }
+    .choose-instruments, .choose-template { grid-template-columns: 1fr; height: auto; }
+    .choose-instruments .list, .choose-template .list { min-height: 160px; max-height: 40vh; }
+    .add-column { justify-content: center; }
+    .template-preview { min-height: 300px; }
+    .general-info { grid-template-columns: 1fr; }
+    .key-grid { grid-template-columns: repeat(4, 72px); }
+    .score-options > .dropdown .dropdown-panel { left: 0; right: auto; }
+    dialog.new-score { height: calc(100vh - 32px); }
+}
+
+/* ---- printing: the SVG pages of #print-pages, one per sheet (@page size is set by the script) ---- */
+
+#print-pages { display: none; }
+
+@media print {
+    html, body { height: auto; }
+    body { display: block; overflow: visible; background: #fff; }
+    body > :not(#print-pages) { display: none !important; }
+    #print-pages { display: block; }
+    .print-page { break-after: page; overflow: hidden; }
+    .print-page:last-child { break-after: auto; }
+    .print-page svg { display: block; }
+}
+
+/* ---- note input toolbar: customisation ---- */
+
+.customise-popup {
+    position: fixed;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(340px, calc(100vw - 16px));
+    max-height: min(560px, calc(100vh - 80px));
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .2);
+    outline: none;
+}
+
+.customise-header { display: flex; align-items: center; gap: 2px; }
+.customise-header .spacer { flex: 1; }
+.customise-list { flex: 1; min-height: 120px; }
+.customise-list .tool-icon { width: 20px; text-align: center; }
+.separator-item { text-align: center; font-size: 11px; }
+
+/* ---- preferences, about ---- */
+
+dialog.preferences { width: min(720px, calc(100vw - 32px)); height: min(480px, calc(100vh - 32px)); padding: 0; }
+dialog.preferences[open] { display: flex; flex-direction: column; }
+dialog.preferences .dialog-buttons { margin: 0; padding: 12px 24px; border-top: 1px solid var(--border); }
+.preferences-body { flex: 1; display: flex; min-height: 0; }
+
+.preferences-pages {
+    width: 200px;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+    border-right: 1px solid var(--border);
+}
+
+.preferences-pages li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: default;
+}
+
+.preferences-pages li[aria-selected="true"] { background: var(--selected); }
+.preferences-page { flex: 1; padding: 16px 24px; overflow: auto; }
+.preferences-section h3 { margin: 0 0 8px; font-size: 13px; }
+.preferences-section select { min-width: 240px; }
+.autosave-row { display: flex; align-items: center; gap: 12px; }
+.autosave-row .number-with-unit { display: inline-flex; align-items: center; gap: 4px; }
+.autosave-row input[type="number"] { width: 64px; }
+
+dialog.save-score { width: min(480px, calc(100vw - 32px)); }
+
+/* the Transpose dialog (TransposeDialog: group boxes, the checkable ones with a radio button in the title) */
+dialog.transpose { width: min(460px, calc(100vw - 32px)); }
+dialog.transpose form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+dialog.transpose .groupbox {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 0;
+    padding: 8px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+dialog.transpose .groupbox legend { padding: 0 4px; }
+dialog.transpose .groupbox:disabled > :not(legend) { opacity: .5; }
+dialog.transpose .groupbox-row { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+dialog.transpose label.groupbox-row { align-items: center; }
+dialog.transpose select { min-width: 0; max-width: 100%; }
+dialog.transpose .radio-rows { gap: 6px; }
+dialog.save-score form { display: flex; flex-direction: column; gap: 12px; }
+dialog.save-score .hint { max-width: none; }
+dialog.save-score .dialog-buttons .spacer { flex: 1; }
+
+dialog.about { width: min(460px, calc(100vw - 32px)); }
+dialog.about h2 { font-size: 20px; margin: 0; }
+.about-header { display: flex; align-items: center; gap: 16px; }
+.about-header p { margin: 4px 0 0; }
+
+/* the text field of the notation's text editing: invisible, at the text cursor (for input methods) */
+.notation-text-input {
+    position: fixed;
+    left: -1000px;
+    top: 0;
+    width: 2px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    opacity: 0;
+    resize: none;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: pre;
+    caret-color: transparent;
+}
+
+/* ---- playback: the toolbar (PlaybackToolBar.qml), the cursor and the loop markers on the pages ---- */
+
+.playback-time {
+    width: 76px;
+    height: 24px;
+    margin: 0 4px;
+    padding: 0 4px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+.playback-measure-beat { display: inline-flex; align-items: center; gap: 1px; font-variant-numeric: tabular-nums; }
+.playback-measure-beat input { width: 46px; height: 24px; padding: 0 2px; text-align: center; }
+.tempo-button { min-width: 64px; justify-content: center; font-variant-numeric: tabular-nums; }
+.tempo-note { font-family: "Leland"; font-size: 22px; line-height: 0; position: relative; top: 5px; }
+.playback-loading { display: inline-flex; align-items: center; gap: 4px; margin: 0 4px; font-size: 11px; }
+.playback-loading progress { width: 64px; height: 6px; }
+.playback-loading.error { color: var(--danger); }
+
+.speed-popup {
+    position: fixed;
+    z-index: 15;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px 12px;
+    width: 280px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .2);
+    outline: none;
+}
+.speed-popup .number-with-unit input { width: 64px; }
+.speed-popup input[type="range"] { grid-column: 1 / -1; width: 100%; }
+
+/* NotationConfiguration::playbackCursorColor: the selection color of voice 1 (#0065BF) with alpha 178 */
+.playback-cursor {
+    position: absolute;
+    z-index: 2;
+    pointer-events: none;
+    background: rgba(0, 101, 191, .7);
+}
+.loop-marker { position: absolute; z-index: 2; pointer-events: none; overflow: visible; }
+.mute-button .tool-icon { position: relative; }
+.mute-button.muted .tool-icon::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: 50%;
+    border-top: 2px solid currentColor;
+    transform: rotate(-45deg);
+}
+
+/* ---- Staff/Part properties (EditStaff), Note selection (EditPitch), String data (EditStringData) ---- */
+dialog.edit-staff { width: min(720px, calc(100vw - 32px)); }
+dialog.edit-staff form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+dialog.edit-staff .groupbox, dialog.transpose .groupbox {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 0;
+    padding: 8px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+dialog.edit-staff .groupbox legend { padding: 0 4px; font-weight: 600; }
+.edit-staff-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; }
+.edit-staff-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+dialog.edit-staff .field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+dialog.edit-staff .field-row > span:first-child { color: var(--muted); }
+dialog.edit-staff .spin { display: inline-flex; align-items: center; gap: 4px; }
+dialog.edit-staff .spin input { width: 72px; }
+dialog.edit-staff .instrument-row { justify-content: flex-start; flex-wrap: wrap; }
+dialog.edit-staff .instrument-name { font-weight: 600; flex: 1; }
+dialog.edit-staff textarea { resize: vertical; font: inherit; }
+dialog.edit-staff .pitch-ranges, dialog.edit-staff .transposition, dialog.edit-staff .string-data-frame {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+}
+dialog.edit-staff .pitch-range { display: inline-flex; align-items: center; gap: 6px; }
+dialog.edit-staff .pitch-field { display: inline-flex; align-items: center; gap: 2px; }
+dialog.edit-staff .pitch-field input { width: 56px; text-align: center; }
+dialog.edit-staff .transposition input[type="number"] { width: 56px; }
+dialog.edit-staff .error { color: var(--danger, #c62828); margin: 0; }
+dialog.edit-staff .dialog-buttons .spacer { flex: 1; }
+dialog.edit-staff .icon-button, dialog.edit-string-data .icon-button {
+    font-family: "MusescoreIcon"; font-size: 16px; min-width: 32px;
+}
+
+dialog.realize-dialog { width: min(520px, calc(100vw - 32px)); }
+dialog.realize-dialog form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+dialog.realize-dialog .chord-list { display: flex; gap: 12px; flex-wrap: wrap; }
+dialog.realize-dialog .chord-names { font-weight: 600; }
+dialog.realize-dialog .groupbox {
+    border: 1px solid var(--border); border-radius: 6px; margin: 0; padding: 8px 12px 12px; min-width: 0;
+    display: flex; flex-direction: column; gap: 8px;
+}
+dialog.realize-dialog .field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+dialog.realize-dialog .chord-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+dialog.realize-dialog .chord-table th, dialog.realize-dialog .chord-table td { border: 1px solid var(--border); padding: 2px 6px; }
+dialog.realize-dialog .dialog-buttons .spacer { flex: 1; }
+dialog.tuplet-dialog { width: min(420px, calc(100vw - 32px)); }
+dialog.tuplet-dialog form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+dialog.tuplet-dialog .groupbox {
+    border: 1px solid var(--border); border-radius: 6px; margin: 0; padding: 8px 12px 12px; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px;
+}
+dialog.tuplet-dialog .groupbox legend { padding: 0 4px; font-weight: 600; }
+dialog.tuplet-dialog .ratio { display: flex; align-items: center; gap: 8px; }
+dialog.tuplet-dialog .ratio input { width: 72px; }
+dialog.tuplet-dialog .format { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+dialog.tuplet-dialog .dialog-buttons .spacer, dialog.measures-count-dialog .dialog-buttons .spacer { flex: 1; }
+dialog.measures-count-dialog { width: min(420px, calc(100vw - 32px)); }
+dialog.measures-count-dialog form { text-align: left; display: flex; flex-direction: column; gap: 20px; }
+dialog.measures-count-dialog .measures-count { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+dialog.measures-count-dialog .measures-count span { flex: 1; }
+dialog.measures-count-dialog .measures-count input { width: 96px; }
+dialog.select-dialog { width: min(440px, calc(100vw - 32px)); }
+dialog.select-dialog form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+dialog.select-dialog .groupbox {
+    border: 1px solid var(--border); border-radius: 6px; margin: 0; padding: 8px 12px 12px; min-width: 0;
+}
+dialog.select-dialog .groupbox legend { padding: 0 4px; font-weight: 600; }
+dialog.select-dialog .select-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; align-items: center; }
+dialog.select-dialog .select-grid hr { border: none; border-top: 1px solid var(--border); margin: 2px 0; }
+dialog.select-dialog .value.disabled, dialog.select-dialog .label { color: var(--muted); }
+dialog.select-dialog .dialog-buttons .spacer { flex: 1; }
+
+dialog.edit-pitch { width: min(640px, calc(100vw - 32px)); }
+dialog.edit-pitch form, dialog.edit-pitch .dialog-buttons { margin-top: 12px; }
+.pitch-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+.pitch-table th { color: var(--muted); font-weight: normal; padding: 2px 4px; white-space: nowrap; }
+.pitch-table td { text-align: center; padding: 3px 2px; border: 1px solid var(--border); cursor: default; }
+.pitch-table td[aria-selected="true"] { background: var(--accent); color: #fff; }
+.pitch-table td:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+dialog.edit-string-data { width: min(460px, calc(100vw - 32px)); }
+.string-data-body { display: flex; gap: 16px; }
+.string-data-list { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.string-data-list p { margin: 0; }
+.string-table { border-collapse: collapse; width: 100%; }
+.string-table th { text-align: left; color: var(--muted); font-weight: normal; padding: 2px 6px; }
+.string-table td { padding: 2px 6px; border-top: 1px solid var(--border); }
+.string-table tr[aria-selected="true"] td { background: var(--hover); }
+.string-data-buttons { display: flex; flex-direction: column; gap: 8px; justify-content: flex-start; }
+.string-data-list .frets { display: flex; align-items: center; gap: 8px; }
+.string-data-list .frets input { width: 64px; }
+
+/* "Edit staff type" (EditStaffType: Advanced style properties) */
+dialog.edit-staff-type { width: min(720px, calc(100vw - 32px)); }
+.staff-type-body { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.staff-type-header { display: flex; align-items: center; gap: 12px; }
+.staff-type-header input { flex: 1; }
+.staff-type-common, .staff-type-page { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.staff-type-page.tab { flex-direction: column; align-items: stretch; }
+dialog.edit-staff-type .groupbox {
+    border: 1px solid var(--border); border-radius: 6px; margin: 0; padding: 8px 12px 12px;
+    display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+dialog.edit-staff-type .groupbox legend { padding: 0 4px; font-weight: 600; }
+dialog.edit-staff-type .field-row { display: flex; align-items: center; gap: 8px; }
+dialog.edit-staff-type .field-row > span:first-child { color: var(--muted); }
+dialog.edit-staff-type .spin { display: inline-flex; align-items: center; gap: 4px; }
+dialog.edit-staff-type .spin input { width: 72px; }
+dialog.edit-staff-type .radio-row { display: flex; gap: 16px; }
+dialog.edit-staff-type .radio-grid { display: grid; grid-template-columns: auto repeat(4, auto); gap: 6px 12px; align-items: center; justify-content: start; }
+dialog.edit-staff-type .radio-grid > span { color: var(--muted); grid-column: 1; }
+.staff-type-preview { width: 100%; display: block; background: #fff; border-radius: 4px; }
+.staff-type-template { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ---- Page settings (PageSettings), Measures per system (BreaksDialog), message boxes ---- */
+dialog.page-settings { width: min(720px, calc(100vw - 32px)); }
+dialog.page-settings form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+.page-settings-columns { display: flex; flex-wrap: wrap; gap: 12px; }
+.page-settings-column { flex: 1 1 280px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+dialog.page-settings .groupbox {
+    border: 1px solid var(--border); border-radius: 6px; margin: 0; padding: 8px 12px 12px; min-width: 0;
+    display: flex; flex-direction: column; gap: 8px;
+}
+dialog.page-settings .groupbox legend { padding: 0 4px; font-weight: 600; }
+dialog.page-settings .field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+dialog.page-settings .radio-row { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+dialog.page-settings .page-spin { display: inline-flex; align-items: center; gap: 4px; }
+dialog.page-settings .page-spin input { width: 80px; text-align: right; }
+dialog.page-settings .page-spin.disabled { opacity: .5; }
+dialog.page-settings .page-spin-suffix { color: var(--muted); min-width: 2em; }
+dialog.page-settings .page-offset { width: 80px; }
+.page-margins {
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "top top" "left right" "bottom bottom";
+    gap: 6px 12px; justify-items: center;
+}
+.page-margins .top { grid-area: top; }
+.page-margins .left { grid-area: left; justify-self: start; }
+.page-margins .right { grid-area: right; justify-self: end; }
+.page-margins .bottom { grid-area: bottom; }
+dialog.page-settings .dialog-buttons { flex-wrap: wrap; }
+dialog.page-settings .dialog-buttons .spacer, dialog.breaks-dialog .dialog-buttons .spacer { flex: 1; }
+dialog.breaks-dialog { width: min(460px, calc(100vw - 32px)); }
+dialog.breaks-dialog form { text-align: left; display: flex; flex-direction: column; gap: 12px; }
+dialog.breaks-dialog .radio-rows { display: flex; flex-direction: column; gap: 8px; }
+.breaks-interval { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.breaks-interval input[type="number"] { width: 64px; }
+dialog.message-box p strong { color: var(--fg); font-weight: 600; }
+/* the detail text keeps its line breaks (e.g. the errors of a MusicXML import) */
+dialog.message-box .message-box-detail { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow-y: auto; }
+
+/* ---- Find / Go to (SearchPopup) ---- */
+.search-popup {
+    height: 50px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px;
+    background: var(--bg); border-top: 1px solid var(--border);
+}
+.search-popup label { display: flex; align-items: center; gap: 8px; }
+.search-popup input { width: min(500px, 60vw); }
+.search-popup .icon-button { min-width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---- Project properties ---- */
+dialog.project-properties { width: min(712px, calc(100vw - 32px)); }
+dialog.project-properties form { text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.property-list { max-height: min(500px, 55vh); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+.property-row { display: flex; align-items: flex-start; gap: 8px; }
+.property-row .property-name { width: 160px; flex-shrink: 0; line-height: 30px; overflow: hidden; text-overflow: ellipsis; }
+.property-row input.property-name { line-height: normal; }
+.property-row > input:not(.property-name), .property-row > textarea { flex: 1; min-width: 0; font: inherit; resize: vertical; }
+.property-row .icon-button { min-width: 30px; height: 30px; }
+dialog.project-properties .file-info { border-top: 1px solid var(--border); padding: 12px 0 8px; display: flex; flex-direction: column; gap: 8px; }
+.file-info-row { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.property-info { display: flex; gap: 8px; min-width: 0; }
+.property-info .property-name { width: 160px; flex-shrink: 0; }
+.file-info-row .property-info .property-name { width: auto; }
+.property-info .property-value { color: var(--muted); overflow-wrap: anywhere; }
+dialog.project-properties .dialog-buttons .spacer { flex: 1; }
+.notation-tab { cursor: default; border-bottom-color: transparent; }
+.notation-tab[aria-selected="true"] { border-bottom-color: var(--accent); }
+.notation-tab:not([aria-selected="true"]) .notation-tab-title { font-weight: 400; }
+
+/* playalong (not in MuseScore): the measure followed, the measure number, the notes heard (in the status bar) */
+.playalong-measure {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+    background: rgba(0, 101, 191, .12);
+    border: 2px solid rgba(0, 101, 191, .6);
+    border-radius: 3px;
+    box-sizing: border-box;
+    transition: left .15s, top .15s, width .15s;
+}
+.playalong-measure-number {
+    min-width: 2.5em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.statusbar .status-heard { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.playalong-status { font-size: .9em; white-space: nowrap; margin: 0 .5em; }
+.playalong-status.error { color: var(--danger); }
+/* the guide of the note detection's calibration: over the score, not modal (the measure to play stays visible) */
+.calibration-box {
+    position: absolute; right: 16px; bottom: 16px; z-index: 20; width: min(360px, calc(100% - 32px));
+    padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
+}
+.calibration-box h3 { margin: 0 0 8px; font-size: 1em; }
+.calibration-box p { margin: 0 0 8px; }
+.calibration-box .calibration-progress { color: var(--muted); font-size: .9em; }
+.calibration-buttons { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }

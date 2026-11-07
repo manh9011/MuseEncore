@@ -1,0 +1,7 @@
+import {chromium} from 'playwright-core'
+import {PNG} from 'pngjs'
+import pixelmatch from 'pixelmatch'
+import {readFileSync,writeFileSync} from 'node:fs'
+const b=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'}),imgs=[]
+for(const[name,host]of[['react','[::1]:5180'],['vue','127.0.0.1:5174']]){const p=await b.newPage({viewport:{width:1280,height:800}});await p.addInitScript(()=>{let open=indexedDB.open.bind(indexedDB);indexedDB.open=(...a)=>{let r=open(...a);if(a[0]==='musescoreweb-scores')r.addEventListener('success',()=>{let d=r.result,t=d.transaction(['scores','contents'],'readwrite');t.objectStore('scores').put({id:'parity-seed',name:'Parity demo.mscz',title:'Sample score',composer:'Test Composer',source:'file',size:1048576,pages:2,aspect:.7,created:Date.now()-86400000,modified:Date.now(),opened:Date.now()-120000});t.objectStore('contents').put({id:'parity-seed',data:new ArrayBuffer(0)})},{once:true});return r}});await p.goto(`http://${host}/`);await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(700);await p.screenshot({path:`home-populated-grid-${name}.png`});imgs.push(PNG.sync.read(readFileSync(`home-populated-grid-${name}.png`)));await p.close()}
+const d=new PNG({width:1280,height:800});console.log('diff',pixelmatch(imgs[0].data,imgs[1].data,d.data,1280,800,{threshold:.1}));writeFileSync('home-populated-grid-diff.png',PNG.sync.write(d));await b.close()

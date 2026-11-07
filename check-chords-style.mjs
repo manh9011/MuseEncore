@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-3.0-only
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' })
+try {
+  for (const [name,host] of [['react','[::1]:5180'],['vue','127.0.0.1:5174']]) {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+    await page.route('http://scores.test/**', route => route.fulfill({ path: 'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz', headers: { 'access-control-allow-origin': '*' } }))
+    await page.addInitScript(() => localStorage.setItem('musescoreweb:settings', JSON.stringify({ project: { migration: { Pre_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false }, Ver_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false } } } })))
+    await page.goto(`http://${host}/?url=http://scores.test/test.mscz`)
+    await page.waitForSelector('.page canvas')
+    await page.waitForTimeout(10000)
+    async function open() {
+      await page.getByRole('menuitem', { name: 'Format', exact: true }).click()
+      await page.getByRole('menuitem', { name: 'Style…', exact: true }).click()
+      await page.getByRole('option', { name: 'Chord symbols', exact: true }).click()
+    }
+    await open()
+    const preset = page.getByRole('combobox',{name:'Preset'})
+    await preset.selectOption({label:'Load custom XML…'})
+    const load = page.getByRole('button',{name:'Load style'})
+    assert.equal(await load.isVisible(),true)
+    if (name==='vue') await page.evaluate(() => { window.showOpenFilePicker = undefined })
+    const chooser = page.waitForEvent('filechooser')
+    await load.click()
+    await (await chooser).setFiles({name:'custom.xml',mimeType:'application/xml',buffer:Buffer.from('<museScore><ChordList/></museScore>')})
+    await page.waitForTimeout(300)
+    assert.equal(await page.locator('.es-qml input[disabled]').first().inputValue(),'custom.xml')
+    await preset.selectOption({label:'Jazz'})
+    const scale = page.getByRole('textbox', {name:'Scale:'}).first()
+    await scale.fill('125')
+    await scale.press('Enter')
+    await scale.blur()
+    const voicing = page.getByRole('combobox', {name:'Voicing:'})
+    await voicing.selectOption({label:'Drop two'})
+    await page.getByRole('radio',{name:'Show transposed symbols only'}).click()
+    const capo = page.getByRole('textbox',{name:'Capo fret position:'})
+    await capo.fill('15')
+    await capo.press('Enter')
+    assert.equal(Number(await capo.inputValue()),11)
+    await page.getByRole('button',{name:'OK',exact:true}).click()
+    await open()
+    assert.equal(await preset.inputValue(),'1')
+    assert.equal(await voicing.inputValue(),'3')
+    assert.equal(Number(await scale.inputValue()),125)
+    assert.equal(Number(await capo.inputValue()),11)
+    await page.getByRole('button',{name:'Cancel',exact:true}).click()
+    console.log(`${name}: voicing persists`)
+    await page.close()
+  }
+} finally { await browser.close() }

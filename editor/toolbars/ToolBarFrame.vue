@@ -1,0 +1,25 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { registerAction } from '../actions/actions'
+import { qtrc, stripMnemonic, trString, useLanguage } from '../i18n'
+import MenuPopup from '../components/MenuPopup.vue'
+import { toolbarDrag } from './drag'
+import type { MenuItem } from '../menus/appmenu'
+import { BOTTOM_DOCK, dockOf, moveToolBar, rowSequence, TOOLBARS, toolBarLayout, topRowCount, topRowId, useToolBarLayout } from './layout'
+const props=defineProps<{id:string}>()
+useLanguage()
+const layout=useToolBarLayout(), info=TOOLBARS.find(t=>t.id===props.id)!, title=computed(()=>stripMnemonic(trString(info.title))),menu=ref<DOMRect|null>(null),grip=ref<HTMLButtonElement|null>(null)
+function by(dir:-1|1){const dock=dockOf(props.id);moveToolBar(props.id,dock,toolBarLayout().docks[dock].indexOf(props.id)+dir)}
+function rowTarget(dir:-1|1){const l=toolBarLayout(),dock=dockOf(props.id),rows=rowSequence(l),i=rows.indexOf(dock);if(i<0)return null;if(dir<0)return i>0?{dock:rows[i-1],index:l.docks[rows[i-1]].length}:null;if(i+1<rows.length)return {dock:rows[i+1],index:0};return l.docks[dock].length>1?{dock:topRowId(topRowCount(l)),index:0}:null}
+function row(dir:-1|1){const t=rowTarget(dir);if(t)moveToolBar(props.id,t.dock,t.index)}
+const actions=[['left',()=>by(-1),()=>toolBarLayout().docks[dockOf(props.id)].indexOf(props.id)>0,'Move left'],['right',()=>by(1),()=>{const a=toolBarLayout().docks[dockOf(props.id)];return a.indexOf(props.id)<a.length-1},'Move right'],['up',()=>row(-1),()=>!!rowTarget(-1),'Move to the row above'],['down',()=>row(1),()=>!!rowTarget(1),'Move to the row below'],['bottom',()=>moveToolBar(props.id,BOTTOM_DOCK,toolBarLayout().docks[BOTTOM_DOCK].length),()=>true,'Move to the bottom'],['top',()=>{const l=toolBarLayout(),dock=topRowId(Math.max(0,topRowCount(l)-1));moveToolBar(props.id,dock,l.docks[dock]?.length??0)},()=>true,'Move to the top']] as const
+for(const [key,run,enabled,label] of actions)registerAction(`toolbar-move-${key}:${props.id}`,{run,enabled},{title:[null,label]})
+const menuItems=computed<MenuItem[]>(()=>{void layout.docks;return [...['left','right','up','down',dockOf(props.id)===BOTTOM_DOCK?'top':'bottom'].map(key=>({kind:'action' as const,code:`toolbar-move-${key}:${props.id}`})),...(info.toggleAction?[{kind:'separator' as const},{kind:'action' as const,code:info.toggleAction}]:[])]})
+function target(x:number,y:number){let best:{dock:string;dist:number;el:HTMLElement}|null=null;for(const el of document.querySelectorAll<HTMLElement>('[data-dock]')){const r=el.getBoundingClientRect(),dist=y<r.top?r.top-y:y>r.bottom?y-r.bottom:0;if(!best || dist<best.dist)best={dock:el.dataset.dock!,dist,el}}if(!best)return {dock:dockOf(props.id),index:0};const bars=[...best.el.querySelectorAll<HTMLElement>(':scope > .toolbar[data-toolbar]')].filter(b=>b.dataset.toolbar!==props.id),rtl=document.documentElement.dir==='rtl';let index=bars.length;for(let i=0;i<bars.length;i++){const r=bars[i].getBoundingClientRect();if((y>=r.top&&y<=r.bottom&&(rtl?x>r.left+r.width/2:x<r.left+r.width/2))||y<r.top){index=i;break}}return {dock:best.dock,index}}
+let dragged=false
+function pointer(event:PointerEvent){if(event.button!==0)return;const el=event.currentTarget as HTMLButtonElement,startX=event.clientX,startY=event.clientY;dragged=false;el.setPointerCapture(event.pointerId);let destination:ReturnType<typeof target>|null=null;const move=(e:PointerEvent)=>{if(!dragged && Math.hypot(e.clientX-startX,e.clientY-startY)<4)return;dragged=true;destination=target(e.clientX,e.clientY);toolbarDrag.value={id:props.id,...destination}};const up=(e:PointerEvent)=>{el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);if(e.type==='pointerup' && destination)moveToolBar(props.id,destination.dock,destination.index);toolbarDrag.value=null};el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)}
+function key(event:KeyboardEvent){if(!event.altKey)return;const rtl=document.documentElement.dir==='rtl';if(event.key==='ArrowLeft')by(rtl?1:-1);else if(event.key==='ArrowRight')by(rtl?-1:1);else if(event.key==='ArrowUp')row(-1);else if(event.key==='ArrowDown')row(1);else return;event.preventDefault()}
+function openMenu(){if(dragged){dragged=false;return}menu.value=grip.value?.getBoundingClientRect()??null}
+</script>
+<template><div class="toolbar" :class="{ dragging: toolbarDrag?.id === id }" :data-toolbar="id" role="toolbar" :aria-label="title"><button ref="grip" class="toolbar-grip" :title="`${title} – ${qtrc('appshell','Drag to move')}`" :aria-label="`${title}: ${qtrc('appshell','Drag to move')}`" @pointerdown="pointer" @contextmenu.prevent="openMenu" @click="openMenu" @keydown="key"><span aria-hidden="true"></span></button><slot /><MenuPopup v-if="menu" :items="menuItems" :anchor="menu" placement="below" :label="title" @close="menu=null" /></div></template>

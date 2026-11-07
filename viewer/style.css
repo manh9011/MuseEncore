@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The MuseEncore Viewer app: the viewer component (styled in its shadow root, viewer/src/viewer.css) fills the window. */
+
+:root { color-scheme: light dark; }
+
+html, body { height: 100%; }
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #eceef1;
+}
+
+@media (prefers-color-scheme: dark) {
+    body { background: #1b1d21; }
+}
+
+#app { height: 100%; }
+
+/* ---- printing from the browser's menu: the SVG pages of #print-pages, one per sheet (@page size is set by the script) ---- */
+
+#print-pages { display: none; }
+
+@media print {
+    html, body { height: auto; }
+    body { display: block; overflow: visible; background: #fff; }
+    body > :not(#print-pages) { display: none !important; }
+    #print-pages { display: block; }
+    .print-page { break-after: page; overflow: hidden; }
+    .print-page:last-child { break-after: auto; }
+    .print-page svg { display: block; }
+}

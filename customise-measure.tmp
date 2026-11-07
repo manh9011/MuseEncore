@@ -1,0 +1,129 @@
+react { x: 668.703125, y: 108, width: 340, height: 560 } items 51
+react [
+  {
+    tag: 'LI',
+    rect: {
+      x: 686.703125,
+      y: 166,
+      width: 304,
+      height: 30,
+      top: 166,
+      right: 990.703125,
+      bottom: 196,
+      left: 686.703125
+    },
+    font: '13px / 18.2px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    letter: 'normal'
+  },
+  {
+    tag: 'INPUT',
+    rect: {
+      x: 694.703125,
+      y: 174.5,
+      width: 13,
+      height: 13,
+      top: 174.5,
+      right: 707.703125,
+      bottom: 187.5,
+      left: 694.703125
+    },
+    font: '13.3333px Arial',
+    letter: 'normal'
+  },
+  {
+    tag: 'SPAN',
+    rect: {
+      x: 713.703125,
+      y: 173,
+      width: 20,
+      height: 16,
+      top: 173,
+      right: 733.703125,
+      bottom: 189,
+      left: 713.703125
+    },
+    font: '16px / 16px MusescoreIcon',
+    letter: 'normal'
+  },
+  {
+    tag: 'SPAN',
+    rect: {
+      x: 739.703125,
+      y: 171.90625,
+      width: 243,
+      height: 18.1875,
+      top: 171.90625,
+      right: 982.703125,
+      bottom: 190.09375,
+      left: 739.703125
+    },
+    font: '13px / 18.2px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    letter: 'normal'
+  }
+]
+react toggle and Escape focus passed
+vue { x: 669, y: 108, width: 340, height: 560 } items 51
+vue [
+  {
+    tag: 'LI',
+    rect: {
+      x: 687,
+      y: 166,
+      width: 304,
+      height: 30,
+      top: 166,
+      right: 991,
+      bottom: 196,
+      left: 687
+    },
+    font: '13px / 18.2px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    letter: 'normal'
+  },
+  {
+    tag: 'INPUT',
+    rect: {
+      x: 695,
+      y: 174.5,
+      width: 13,
+      height: 13,
+      top: 174.5,
+      right: 708,
+      bottom: 187.5,
+      left: 695
+    },
+    font: '13.3333px Arial',
+    letter: 'normal'
+  },
+  {
+    tag: 'SPAN',
+    rect: {
+      x: 714,
+      y: 173,
+      width: 20,
+      height: 16,
+      top: 173,
+      right: 734,
+      bottom: 189,
+      left: 714
+    },
+    font: '16px / 16px MusescoreIcon',
+    letter: 'normal'
+  },
+  {
+    tag: 'SPAN',
+    rect: {
+      x: 740,
+      y: 171.90625,
+      width: 243,
+      height: 18.1875,
+      top: 171.90625,
+      right: 983,
+      bottom: 190.09375,
+      left: 740
+    },
+    font: '13px / 18.2px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    letter: 'normal'
+  }
+]
+vue toggle and Escape focus passed
+different pixels 4341

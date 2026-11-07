@@ -1,0 +1,138 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseEncore — port of MuseScore Studio (https://github.com/musescore/MuseScore)
+ * Copyright (C) 2021-2026 MuseScore Limited and others
+ *
+ * Port of src/engraving/rw/compat/compatutils.h/.cpp
+ * TODO(port): the other compatibility functions
+ */
+
+import type { AlignH } from '../../types/types'
+import type { Excerpt } from '../../dom/excerpt'
+import { Pid, PropertyFlags } from '../../dom/property'
+import type { TextLineBase } from '../../dom/textlinebase'
+import { Spatium } from '../../types/dimension'
+import { DPI } from '../../types/types'
+import { Font, FontType } from '../../../framework/draw/types/font'
+import { fontProvider } from '../../infrastructure/engravingcontext'
+import { Sid, STYLE_VALUES } from '../../style/styledef'
+import { Key } from '../../types/types'
+import { function2Tpc } from '../../dom/pitchspelling'
+import type { Harmony, HarmonyInfo } from '../../dom/harmony'
+import { ArticulationAnchor } from '../../dom/articulation'
+import type { Image } from '../../dom/image'
+
+const PRE_470_DPI = 360
+
+export class CompatUtils {
+    /** the initial part of excerpts read from older files: the part with the excerpt's name */
+    static assignInitialPartToExcerpts(excerpts: readonly Excerpt[]): void {
+        const assignedPartIdSet = new Set<string>()
+
+        const assignInitialPartId = (excerpt: Excerpt, initialPartId: string): void => {
+            excerpt.setInitialPartId(initialPartId)
+            assignedPartIdSet.add(initialPartId)
+        }
+
+        for (const excerpt of excerpts) {
+            for (const part of excerpt.excerptScore()!.parts()) {
+                if (excerpt.name() === part.partName()) {
+                    assignInitialPartId(excerpt, part.id())
+                    break
+                }
+            }
+        }
+
+        for (const excerpt of excerpts) {
+            if (excerpt.initialPartId()) {
+                continue
+            }
+
+            for (const part of excerpt.excerptScore()!.parts()) {
+                if (assignedPartIdSet.has(part.id())) {
+                    continue
+                }
+
+                if (excerpt.name().includes(part.partName())) {
+                    assignInitialPartId(excerpt, part.id())
+                    break
+                }
+            }
+        }
+    }
+
+    /** The frame radius used to be expressed in raster units and divided by 2 at drawing. Since 4.7 it is expressed in spatium. */
+    static convertPre470FrameRadius(frameRadius: number): Spatium {
+        return new Spatium(frameRadius * (DPI / PRE_470_DPI) / (STYLE_VALUES[Sid.spatium].defaultValue as number) / 2)
+    }
+
+    static convertPre470ImageSize(image: Image): void {
+        if (image.size().isNull() && image.score().mscVersion() < 470) {
+            image.init()
+            image.setSize(image.size().times(DPI / PRE_470_DPI))
+        }
+    }
+
+    static translateToNewArticulationAnchor(anchor: number): ArticulationAnchor {
+        switch (anchor) {
+        case 0: // ArticulationAnchor::TOP_STAFF
+        case 3: // ArticulationAnchor::TOP_CHORD
+            return ArticulationAnchor.TOP
+        case 1: // ArticulationAnchor::BOTTOM_STAFF
+        case 4: // ArticulationAnchor::BOTTOM_CHORD
+            return ArticulationAnchor.BOTTOM
+        default:
+            return ArticulationAnchor.AUTO
+        }
+    }
+
+    static setHarmonyRootTpcFromFunction(info: HarmonyInfo, h: Harmony, s: string): void {
+        const st = h.staff()
+        const key = st ? st.key(h.tick()) : Key.INVALID
+        info.setRootTpc(function2Tpc(s, key).tpc)
+    }
+
+    /** read400/read410: hook heights of lines below the staff were stored with the opposite sign before 4.6 */
+    static resetHookHeightSign(tl: TextLineBase): void {
+        if (!tl.placeBelow()) {
+            return
+        }
+
+        if (!tl.isStyled(Pid.BEGIN_HOOK_HEIGHT)) {
+            const beginHookHeight = tl.getProperty(Pid.BEGIN_HOOK_HEIGHT) as Spatium
+            tl.setProperty(Pid.BEGIN_HOOK_HEIGHT, beginHookHeight.neg())
+        }
+        if (!tl.isStyled(Pid.END_HOOK_HEIGHT)) {
+            const endHookHeight = tl.getProperty(Pid.END_HOOK_HEIGHT) as Spatium
+            tl.setProperty(Pid.END_HOOK_HEIGHT, endHookHeight.neg())
+        }
+    }
+
+    static setTextLineTextPositionFromAlign(tl: TextLineBase): void {
+        tl.setBeginTextPosition(tl.beginTextAlign().horizontal)
+        if (tl.beginTextPosition() !== (tl.propertyDefault(Pid.BEGIN_TEXT_POSITION) as AlignH)) {
+            tl.setPropertyFlags(Pid.BEGIN_TEXT_POSITION, PropertyFlags.UNSTYLED)
+        }
+        tl.setContinueTextPosition(tl.continueTextAlign().horizontal)
+        if (tl.continueTextPosition() !== (tl.propertyDefault(Pid.CONTINUE_TEXT_POSITION) as AlignH)) {
+            tl.setPropertyFlags(Pid.CONTINUE_TEXT_POSITION, PropertyFlags.UNSTYLED)
+        }
+        tl.setEndTextPosition(tl.endTextAlign().horizontal)
+        if (tl.endTextPosition() !== (tl.propertyDefault(Pid.END_TEXT_POSITION) as AlignH)) {
+            tl.setPropertyFlags(Pid.END_TEXT_POSITION, PropertyFlags.UNSTYLED)
+        }
+    }
+
+    static convertChordExtModUnits(val: number): number {
+        // Pre 4.6 this value was in 1/5 of a spatium
+        // After 4.6 this is in % of root cap height
+        // The best we can do for conversion of old files is to assume a default spatium of 1.75mm and a default font size of 10pt
+        // The height value is calculated from Edwin at 10pt using FontMetrics::capHeight
+        const DEFAULT_SPATIUM = STYLE_VALUES[Sid.spatium].defaultValue as number
+        const f = new Font('Edwin', FontType.Text)
+        f.setPointSizeF(10)
+        const DEFAULT_FONT_CAP_HEIGHT = fontProvider().capHeight(f) || 121 // 121 if the font is not loaded
+
+        return ((val / 5) * DEFAULT_SPATIUM) / DEFAULT_FONT_CAP_HEIGHT
+    }
+}

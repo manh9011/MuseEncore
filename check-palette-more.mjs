@@ -1,0 +1,32 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+import { PNG } from 'pngjs'
+import pixelmatch from 'pixelmatch'
+import { readFileSync, writeFileSync } from 'node:fs'
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' })
+for (const [name, port] of [['react', 5180], ['vue', 5174]]) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 })
+  await page.route('http://scores.test/**', r => r.fulfill({ path: 'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz', headers: { 'access-control-allow-origin': '*' } }))
+  await page.addInitScript(() => localStorage.setItem('musescoreweb:settings', JSON.stringify({ project: { migration: { Pre_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false }, Ver_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false } } } })))
+  await page.goto(`http://127.0.0.1:${port}/?url=http://scores.test/test.mscz`)
+  await page.waitForSelector('.palette-header', { timeout: 30000 })
+  await page.waitForTimeout(10000)
+  await page.locator('.palette-header').first().click()
+  const trigger = page.locator('.palette-more').first()
+  await trigger.click()
+  const popup = page.locator('.palette-more-popup')
+  await popup.waitFor()
+  console.log(name, await popup.boundingBox(), 'cells', await popup.locator('.palette-cell').count())
+  await page.screenshot({ path: `palette-more-${name}.png` })
+  await popup.locator('.palette-cell').first().focus()
+  await page.keyboard.press('Escape')
+  assert.equal(await popup.count(), 0)
+  assert.equal(await trigger.evaluate(e => document.activeElement === e), true)
+  console.log(name, 'Escape/focus passed')
+  await page.close()
+}
+await browser.close()
+const a = PNG.sync.read(readFileSync('palette-more-react.png')), b = PNG.sync.read(readFileSync('palette-more-vue.png'))
+const diff = new PNG({ width: a.width, height: a.height })
+console.log('different pixels', pixelmatch(a.data, b.data, diff.data, a.width, a.height, { threshold: 0.1 }))
+writeFileSync('palette-more-diff.png', PNG.sync.write(diff))

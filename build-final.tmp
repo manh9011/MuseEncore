@@ -1,0 +1,40 @@
+
+> muse-encore-vue@1.2.1 build:editor
+> vite build editor
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:13:9). Use `import.meta.dirname` instead
+  - import "./vite-plugin-locales" without a file extension (vite.config.ts:8:34). Add the file extension
+  - import "../shared/vite-plugin-sound" without a file extension (vite.config.ts:9:32). Add the file extension
+  - import "../shared/notedetection/basicpitch/vite-plugin-basicpitch" without a file extension (vite.config.ts:10:33). Add the file extension
+  - `__dirname` (../shared/notedetection/basicpitch/vite-plugin-basicpitch.ts:10:24). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 1572 modules transformed.
+[31m✗[39m Build failed in 8.21s
+[31merror during build:
+[31mBuild failed with 1 error:
+
+[plugin vite:vue] K:/Projects/JavaScript/MuseEncore/editor/dialogs/editstyle/qml/MeasureNumbersPage.vue:56:7
+RolldownError: Element is missing end tag.
+SyntaxError: Element is missing end tag.
+    at createCompilerError (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1374:17)
+    at emitError (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3002:5)
+    at Object.onclosetag (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:2399:13)
+    at Tokenizer.stateInClosingTagName (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:799:16)
+    at Tokenizer.parse (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1157:16)
+    at Object.baseParse (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3034:13)
+    at Object.parse (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.prod.js:705:23)
+    at Object.parse$1 [as parse] (K:\Projects\JavaScript\MuseEncore\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1918:24)
+    at createDescriptor (file:///K:/Projects/JavaScript/MuseEncore/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+    at transformMain (file:///K:/Projects/JavaScript/MuseEncore/node_modules/@vitejs/plugin-vue/dist/index.mjs:1358:33)[31m
+    at aggregateBindingErrorsIntoJsError (file:///K:/Projects/JavaScript/MuseEncore/node_modules/rolldown/dist/shared/error-CBG33oNV.mjs:49:18)
+    at unwrapBindingResult (file:///K:/Projects/JavaScript/MuseEncore/node_modules/rolldown/dist/shared/error-CBG33oNV.mjs:19:128)
+    at #build (file:///K:/Projects/JavaScript/MuseEncore/node_modules/rolldown/dist/shared/rolldown-BYX6bV3R.mjs:146:34)
+    at async buildEnvironment (file:///K:/Projects/JavaScript/MuseEncore/node_modules/vite/dist/node/chunks/node.js:34716:66)
+    at async Object.build (file:///K:/Projects/JavaScript/MuseEncore/node_modules/vite/dist/node/chunks/node.js:35137:19)
+    at async Object.buildApp (file:///K:/Projects/JavaScript/MuseEncore/node_modules/vite/dist/node/chunks/node.js:35134:153)
+    at async CAC.<anonymous> (file:///K:/Projects/JavaScript/MuseEncore/node_modules/vite/dist/node/cli.js:780:3) {
+  errors: [Getter/Setter]
+}[39m

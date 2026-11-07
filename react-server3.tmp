@@ -1,0 +1,19 @@
+
+> muse-encore@1.2.1 dev:editor
+> vite editor --port 5180
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:12:11). Use `import.meta.dirname` instead
+  - import "./vite-plugin-locales" without a file extension (vite.config.ts:7:34). Add the file extension
+  - import "../shared/vite-plugin-sound" without a file extension (vite.config.ts:8:32). Add the file extension
+  - import "../shared/notedetection/basicpitch/vite-plugin-basicpitch" without a file extension (vite.config.ts:9:33). Add the file extension
+  - `__dirname` (../shared/notedetection/basicpitch/vite-plugin-basicpitch.ts:10:24). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+Port 5180 is in use, trying another one...
+Port 5181 is in use, trying another one...
+Port 5182 is in use, trying another one...
+
+  [32m[1mVITE[22m v8.3.4[39m  [2mready in [0m[1m391[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5183[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m

@@ -1,0 +1,42 @@
+react desktop { x: 0, y: 69, width: 1440, height: 831 }
+vue desktop { x: 0, y: 69, width: 1440, height: 831 }
+diff desktop 304 / 1296000
+react {
+  html: '<ul class="score-grid" aria-label="Recent scores grid"><li><button class="score-card new"><span class="thumb"><span class="new-plus" aria-hidden="true"></span></span><span class="card-name">New score</span></button></li></ul><p class="home-hint muted">Scores you open or create are kept in this brow',
+  css: '',
+  rect: {
+    x: 0,
+    y: 182.59375,
+    width: 390,
+    height: 606.21875,
+    top: 182.59375,
+    right: 390,
+    bottom: 788.8125,
+    left: 0
+  },
+  children: [
+    [ 'UL', 'score-grid', [Object] ],
+    [ 'P', 'home-hint muted', [Object] ]
+  ]
+}
+react mobile { x: 0, y: 69, width: 390, height: 775 }
+vue {
+  html: '<ul class="score-grid" aria-label="Recent scores grid"><li><button class="score-card new"><span class="thumb"><span class="new-plus" aria-hidden="true"></span></span><span class="card-name">New score</span></button></li></ul><p class="home-hint muted">Scores you open or create are kept in this brow',
+  css: '',
+  rect: {
+    x: 0,
+    y: 182.59375,
+    width: 390,
+    height: 606.21875,
+    top: 182.59375,
+    right: 390,
+    bottom: 788.8125,
+    left: 0
+  },
+  children: [
+    [ 'UL', 'score-grid', [Object] ],
+    [ 'P', 'home-hint muted', [Object] ]
+  ]
+}
+vue mobile { x: 0, y: 69, width: 390, height: 775 }
+diff mobile 304 / 329160

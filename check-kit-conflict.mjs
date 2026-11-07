@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-only
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+const browser = await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'})
+try { for (const viewport of [{width:1280,height:800}]) for (const [name,host] of [['react','[::1]:5180'],['vue','127.0.0.1:5174']]) {
+ const page=await browser.newPage({viewport})
+ await page.route('http://scores.test/**',r=>r.fulfill({path:'MuseScore/share/templates/05-Jazz/03-Jazz_Combo/03-Jazz_Combo.mscx',headers:{'access-control-allow-origin':'*'}}))
+ await page.addInitScript(()=>{localStorage.setItem('musescoreweb:settings',JSON.stringify({project:{migration:{Pre_3_6:{appVersion:470,isApplyMigration:false,isAskAgain:false},Ver_3_6:{appVersion:470,isApplyMigration:false,isAskAgain:false}}}})); delete window.showOpenFilePicker})
+ await page.goto(`http://${host}/?url=http://scores.test/test.mscx`);await page.waitForSelector('.page canvas');await page.waitForTimeout(10000)
+ await page.mouse.click(750,613,{button:'right'});await page.getByRole('menuitem',{name:/Customize kit/}).click();await page.waitForTimeout(1000);const kit=page.locator('dialog.customize-kit');await kit.locator('button.shortcut').click();const shortcut=page.locator('dialog.percussion-shortcut');await shortcut.waitFor();console.log(name,await shortcut.boundingBox());await page.screenshot({path:`kit-shortcut-${name}.png`});await shortcut.getByRole('textbox').press('B');await shortcut.getByRole('button',{name:'Save',exact:true}).click();const msg=page.locator('dialog.message-box[open]');await msg.waitFor();console.log(name,'conflict',await msg.innerText(),await msg.boundingBox());await page.screenshot({path:`kit-conflict-${name}.png`});await msg.getByRole('button',{name:'Cancel',exact:true}).click();await msg.waitFor({state:'hidden'});await shortcut.getByRole('button',{name:'Save',exact:true}).click();await msg.waitFor();await msg.getByRole('button',{name:'OK',exact:true}).click();await shortcut.waitFor({state:'hidden'});if(await kit.locator('button.shortcut').innerText()!=='B')throw Error('conflict assignment failed');await kit.locator('button.shortcut').click();await shortcut.waitFor();await page.keyboard.press('Escape');await shortcut.waitFor({state:'hidden'});await kit.getByRole('button',{name:'Cancel',exact:true}).click();
+ await page.close()
+} } finally {await browser.close()}

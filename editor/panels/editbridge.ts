@@ -1,0 +1,140 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * The score changes the panels request (applying a palette cell, changing a property in the Properties panel,
+ * the instrument commands of the Layout panel). All of them go through this module, so the panels do not depend on
+ * how editing is implemented: the undo stack and the editing commands are ported separately.
+ * The Layout panel commands go through the library's NotationParts port (undoable; they return true if the score
+ * changed).
+ */
+import {
+    applyInspectorChanges as libApplyInspectorChanges, applyPaletteElement as libApplyPaletteElement, hasSelection,
+    type InspectorChange, type Part, type Score, type PaletteElement,
+} from '../../src/index'
+import * as lib from '../../src/index'
+import { scoreChanged as viewScoreChanged } from '../scoreview'
+
+/** to be called after a successful change: relayout and repaint of the view, refresh of the panels */
+export function scoreChanged(): void {
+    viewScoreChanged()
+}
+
+// ---------------------------------------------------------------------------------
+//   palettes (PaletteCellModel / Palette::applyPaletteElement)
+// ---------------------------------------------------------------------------------
+
+/** the palette element can be applied to the score's selection (Palette::applyPaletteElement needs a selection) */
+export function canApplyPaletteElement(score: Score | null): boolean {
+    return !!score && hasSelection(score)
+}
+
+/**
+ * Applies a palette cell's element to the selection (Palette::applyPaletteElement with the keyboard modifiers:
+ * shift = range/all staves behaviour). `element` is the cell's element as the palette library returns it.
+ */
+export function applyPaletteElement(score: Score, element: PaletteElement, modifiers: { shift: boolean; ctrl: boolean } = { shift: false, ctrl: false }): boolean {
+    return libApplyPaletteElement(score, element, modifiers)
+}
+
+// ---------------------------------------------------------------------------------
+//   Properties panel (AbstractInspectorModel::onPropertyValueChanged -> EngravingItem::undoChangeProperty)
+// ---------------------------------------------------------------------------------
+
+export function canChangeProperties(score: Score | null): boolean {
+    return !!score
+}
+
+/**
+ * Applies the changes the Properties panel computed with the library (inspectorPropertyChanges,
+ * inspectorPropertyResets, inspectorArrangeChanges) in one undo command. Returns true if the score changed.
+ */
+export function applyInspectorChanges(score: Score, changes: readonly InspectorChange[]): boolean {
+    return libApplyInspectorChanges(score, changes)
+}
+
+// ---------------------------------------------------------------------------------
+//   Layout panel (LayoutPanelTreeModel -> INotationParts)
+// ---------------------------------------------------------------------------------
+
+export function canEditParts(score: Score | null): boolean {
+    return !!score
+}
+
+/** INotationParts::setPartVisible */
+export function setPartVisible(score: Score, partId: string, visible: boolean): boolean {
+    return lib.setPartVisible(score, partId, visible)
+}
+
+/** INotationParts::setStaffVisible (staff id: the library's Staff id, as in the layout panel's rows) */
+export function setStaffVisible(score: Score, staffId: string, visible: boolean): boolean {
+    return lib.setStaffVisible(score, staffId, visible)
+}
+
+/** INotationParts::insertPart (a part score: an instrument of the main score shown) */
+export function insertPart(score: Score, part: Part, index: number): boolean {
+    return lib.insertPart(score, part, index)
+}
+
+/** INotationParts::replacePart ("Reset all formatting" in a part score) */
+export function replacePart(score: Score, partId: string, newPart: Part): boolean {
+    return lib.replacePart(score, partId, newPart)
+}
+
+/** INotationParts::removeParts */
+export function removeParts(score: Score, partIds: readonly string[]): boolean {
+    return lib.removeParts(score, partIds)
+}
+
+/** INotationParts::removeStaves */
+export function removeStaves(score: Score, staffIds: readonly string[]): boolean {
+    return lib.removeStaves(score, staffIds)
+}
+
+/** INotationParts::moveParts: the parts are moved before (or after) the destination part */
+export function moveParts(score: Score, partIds: readonly string[], destinationPartId: string, after: boolean): boolean {
+    return lib.moveParts(score, partIds, destinationPartId, after)
+}
+
+/** INotationParts::moveStaves: the staves are moved before (or after) the destination staff */
+export function moveStaves(score: Score, staffIds: readonly string[], destinationStaffId: string, after: boolean): boolean {
+    return lib.moveStaves(score, staffIds, destinationStaffId, after)
+}
+
+/** INotationParts::appendStaff ("Add staff"; "Create a linked staff" is the staff settings popup's StaffSettingsModel) */
+export function addStaff(score: Score, partId: string): boolean {
+    return lib.appendStaff(score, partId)
+}
+
+/** INotationParts::addSystemObjects (Add > System markings: the staves get a copy of the top system markings) */
+export function addSystemObjects(score: Score, staffIds: readonly string[]): boolean {
+    return lib.addSystemObjects(score, staffIds)
+}
+
+/** INotationParts::removeSystemObjects */
+export function removeSystemObjects(score: Score, staffIds: readonly string[]): boolean {
+    return lib.removeSystemObjects(score, staffIds)
+}
+
+/** INotationParts::moveSystemObjects (a system markings layer moved to another staff) */
+export function moveSystemObjects(score: Score, sourceStaffId: string, destinationStaffId: string): boolean {
+    return lib.moveSystemObjects(score, sourceStaffId, destinationStaffId)
+}
+
+/** INotationParts::moveSystemObjectLayerBelowBottomStaff / moveSystemObjectLayerAboveBottomStaff */
+export function moveSystemObjectLayerBottomStaff(score: Score, below: boolean): boolean {
+    return lib.moveSystemObjectLayerBottomStaff(score, below)
+}
+
+/** INotationParts::setScoreOrder (the panel's context menu "Instrument ordering"; id of orders.xml or "custom") */
+export function setScoreOrder(score: Score, orderId: string): boolean {
+    return lib.setScoreOrder(score, orderId)
+}
+
+/** "Replace instrument" (INotationParts::replaceInstrument): the part gets the instrument of the template */
+export function replacePartInstrument(score: Score, partId: string, templateId: string): boolean {
+    return lib.replacePartInstrument(score, partId, templateId)
+}
+
+/** INotationParts::setParts with the result of the instruments dialog (instrument template ids appended) */
+export function addInstruments(score: Score, instrumentIds: readonly string[]): boolean {
+    return lib.addInstruments(score, instrumentIds)
+}

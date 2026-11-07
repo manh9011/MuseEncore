@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MuseEncore Editor (Vue 3 + Nuxt UI)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="bg-default text-default antialiased select-none overflow-hidden">
+    <div id="app-root"></div>
+    <div id="toolbar-trigger" class="edge-trigger" aria-hidden="true"></div>
+    <div id="bottom-trigger" class="edge-trigger" aria-hidden="true"></div>
+    <div id="side-trigger" class="edge-trigger" aria-hidden="true"></div>
+    <main id="viewport" tabindex="0" aria-label="Score"><div id="pages"></div></main>
+    <div id="busy" class="busy" hidden><div class="busy-card" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><div id="busy-title" class="busy-title">Loading…</div><div id="busy-detail" class="muted"></div></div></div>
+    <div id="print-pages" aria-hidden="true"></div>
+    <dialog id="help-dialog" aria-label="Keyboard shortcuts"><h2>Keyboard shortcuts</h2><form method="dialog"><button>Close</button></form></dialog>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

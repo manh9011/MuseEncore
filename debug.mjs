@@ -1,0 +1,1 @@
+import{chromium}from'playwright-core';const b=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});for(const pnum of[5173,5174]){let p=await b.newPage();await p.goto(`http://127.0.0.1:${pnum}/`,{waitUntil:'networkidle'});console.log(pnum,await p.title(),(await p.locator('body').innerText()).slice(0,100));}await b.close()

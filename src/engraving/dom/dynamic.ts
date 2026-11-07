@@ -1,0 +1,369 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseEncore — port of MuseScore Studio (https://github.com/musescore/MuseScore)
+ * Copyright (C) 2021-2026 MuseScore Limited and others
+ *
+ * Port of src/engraving/dom/dynamic.h/.cpp
+ *
+ * TODO(port): velocity changes and playback, editing (grips, drag groups)
+ */
+
+import { Fraction } from '../types/fraction'
+import { Constants } from '../types/constants'
+import type { PropertyValue } from '../types/propertyvalue'
+import { DynamicSpeed, DynamicType, ElementType, TextStyleType } from '../types/types'
+import { SymId } from '../types/symid'
+import { TConv } from '../types/typesconv'
+import { Sid } from '../style/styledef'
+import type { Shape } from '../infrastructure/shape'
+import { ElementFlag } from './engravingitem'
+import type { ElementStyle, EngravingObject } from './engravingobject'
+import { Pid } from './property'
+import type { Expression } from './expression'
+import type { Measure } from './measure'
+import type { Segment } from './segment'
+import type { Spanner } from './spanner'
+import type { EngravingItem } from './engravingitem'
+import type { EditData } from '../editing/editdata'
+import { TextBase } from './textbase'
+import { TranslatableString } from '../../framework/global/types/translatablestring'
+import { simplified } from './textbase'
+
+export interface Dyn {
+    type: DynamicType
+    velocity: number // associated midi velocity (0-127, -1 = none)
+    changeInVelocity: number
+    accent: boolean // if true add velocity to current chord velocity
+    text: string // utf8 text of dynamic
+}
+
+const p = '<sym>dynamicPiano</sym>'
+const m = '<sym>dynamicMezzo</sym>'
+const f = '<sym>dynamicForte</sym>'
+const s = '<sym>dynamicSforzando</sym>'
+const z = '<sym>dynamicZ</sym>'
+const r = '<sym>dynamicRinforzando</sym>'
+
+// variant with ligatures, works for both emmentaler and bravura:
+const DYN_LIST: Dyn[] = [
+    { type: DynamicType.OTHER, velocity: -1, changeInVelocity: 0, accent: true, text: '' },
+    { type: DynamicType.PPPPPP, velocity: 1, changeInVelocity: 0, accent: false, text: p.repeat(6) },
+    { type: DynamicType.PPPPP, velocity: 5, changeInVelocity: 0, accent: false, text: p.repeat(5) },
+    { type: DynamicType.PPPP, velocity: 10, changeInVelocity: 0, accent: false, text: p.repeat(4) },
+    { type: DynamicType.PPP, velocity: 16, changeInVelocity: 0, accent: false, text: p.repeat(3) },
+    { type: DynamicType.PP, velocity: 33, changeInVelocity: 0, accent: false, text: p.repeat(2) },
+    { type: DynamicType.P, velocity: 49, changeInVelocity: 0, accent: false, text: p },
+    { type: DynamicType.MP, velocity: 64, changeInVelocity: 0, accent: false, text: m + p },
+    { type: DynamicType.MF, velocity: 80, changeInVelocity: 0, accent: false, text: m + f },
+    { type: DynamicType.F, velocity: 96, changeInVelocity: 0, accent: false, text: f },
+    { type: DynamicType.FF, velocity: 112, changeInVelocity: 0, accent: false, text: f.repeat(2) },
+    { type: DynamicType.FFF, velocity: 126, changeInVelocity: 0, accent: false, text: f.repeat(3) },
+    { type: DynamicType.FFFF, velocity: 127, changeInVelocity: 0, accent: false, text: f.repeat(4) },
+    { type: DynamicType.FFFFF, velocity: 127, changeInVelocity: 0, accent: false, text: f.repeat(5) },
+    { type: DynamicType.FFFFFF, velocity: 127, changeInVelocity: 0, accent: false, text: f.repeat(6) },
+    { type: DynamicType.FP, velocity: 96, changeInVelocity: -47, accent: true, text: f + p },
+    { type: DynamicType.PF, velocity: 49, changeInVelocity: 47, accent: true, text: p + f },
+    { type: DynamicType.SF, velocity: 112, changeInVelocity: -18, accent: true, text: s + f },
+    { type: DynamicType.SFZ, velocity: 112, changeInVelocity: -18, accent: true, text: s + f + z },
+    { type: DynamicType.SFF, velocity: 126, changeInVelocity: -18, accent: true, text: s + f + f },
+    { type: DynamicType.SFFZ, velocity: 126, changeInVelocity: -18, accent: true, text: s + f + f + z },
+    { type: DynamicType.SFFF, velocity: 127, changeInVelocity: -18, accent: true, text: s + f + f + f },
+    { type: DynamicType.SFFFZ, velocity: 127, changeInVelocity: -18, accent: true, text: s + f + f + f + z },
+    { type: DynamicType.SFP, velocity: 112, changeInVelocity: -47, accent: true, text: s + f + p },
+    { type: DynamicType.SFPP, velocity: 112, changeInVelocity: -79, accent: true, text: s + f + p + p },
+    { type: DynamicType.RFZ, velocity: 112, changeInVelocity: -18, accent: true, text: r + f + z },
+    { type: DynamicType.RF, velocity: 112, changeInVelocity: -18, accent: true, text: r + f },
+    { type: DynamicType.FZ, velocity: 112, changeInVelocity: -18, accent: true, text: f + z },
+    { type: DynamicType.M, velocity: 96, changeInVelocity: -16, accent: true, text: m },
+    { type: DynamicType.R, velocity: 112, changeInVelocity: -18, accent: true, text: r },
+    { type: DynamicType.S, velocity: 112, changeInVelocity: -18, accent: true, text: s },
+    { type: DynamicType.Z, velocity: 80, changeInVelocity: 0, accent: true, text: z },
+    { type: DynamicType.N, velocity: 49, changeInVelocity: -48, accent: true, text: '<sym>dynamicNiente</sym>' },
+]
+
+// TConv::symId(DynamicType)
+const DYNAMIC_SYM_IDS: SymId[] = [
+    SymId.noSym, SymId.dynamicPPPPPP, SymId.dynamicPPPPP, SymId.dynamicPPPP, SymId.dynamicPPP, SymId.dynamicPP,
+    SymId.dynamicPiano, SymId.dynamicMP, SymId.dynamicMF, SymId.dynamicForte, SymId.dynamicFF, SymId.dynamicFFF,
+    SymId.dynamicFFFF, SymId.dynamicFFFFF, SymId.dynamicFFFFFF, SymId.dynamicFortePiano, SymId.noSym, SymId.dynamicSforzando1,
+    SymId.dynamicSforzato, SymId.noSym, SymId.dynamicSforzatoFF, SymId.noSym, SymId.noSym, SymId.dynamicSforzandoPiano,
+    SymId.dynamicSforzandoPianissimo, SymId.dynamicRinforzando2, SymId.dynamicRinforzando1, SymId.dynamicForzando,
+    SymId.dynamicMezzo, SymId.dynamicRinforzando, SymId.dynamicSforzando, SymId.dynamicZ, SymId.dynamicNiente,
+]
+
+export function dynamicSymId(t: DynamicType): SymId { return DYNAMIC_SYM_IDS[t] ?? SymId.noSym }
+
+const dynamicsStyle: ElementStyle = [
+    { sid: Sid.dynamicsMinDistance, pid: Pid.MIN_DISTANCE },
+    { sid: Sid.avoidBarLines, pid: Pid.AVOID_BARLINES },
+    { sid: Sid.centerOnNotehead, pid: Pid.CENTER_ON_NOTEHEAD },
+]
+
+const DYNAMIC_REGEX = /(?:<sym>.*?<\/sym>)+|(?:\b)[fmnprsz]+(?:\b(?=[^>]|$))/g
+
+export class Dynamic extends TextBase {
+    private m_dynamicType = DynamicType.OTHER
+    private m_velocity = -1
+    private m_changeInVelocity = 128
+    private m_velChangeSpeed = DynamicSpeed.NORMAL
+    private m_playDynamic = true
+    private m_avoidBarLines = true
+    private m_centerOnNotehead = false
+    private m_leftHairpin: Spanner | null = null
+    private m_rightHairpin: Spanner | null = null
+
+    constructor(parent: EngravingObject | null) {
+        super(ElementType.DYNAMIC, parent, TextStyleType.DYNAMICS, ElementFlag.MOVABLE | ElementFlag.ON_STAFF)
+        this.initElementStyle(dynamicsStyle)
+    }
+
+    static dynamicList(): readonly Dyn[] { return DYN_LIST }
+    static dynInfo(type: DynamicType): Dyn { return DYN_LIST[type] }
+    static dynamicText(t: DynamicType): string { return DYN_LIST[t].text }
+
+    segment(): Segment { return this.explicitParent() as unknown as Segment }
+    measure(): Measure { return this.explicitParent()!.explicitParent() as unknown as Measure }
+
+    override acceptDrop(ed: EditData): boolean {
+        const droppedType = ed.dropElement!.type()
+        return droppedType === ElementType.DYNAMIC || droppedType === ElementType.EXPRESSION || droppedType === ElementType.HAIRPIN
+    }
+
+    override drop(ed: EditData): EngravingItem | null {
+        const item = ed.dropElement!
+
+        if (item.isHairpin()) {
+            // TODO(port): Score::addHairpinToDynamic
+            return null
+        }
+
+        if (item.isDynamic()) {
+            const dynamic = item as Dynamic
+            this.undoChangeProperty(Pid.DYNAMIC_TYPE, dynamic.dynamicType())
+            this.undoChangeProperty(Pid.TEXT, dynamic.xmlText())
+            ed.dropElement = this
+            return this
+        }
+
+        if (item.isExpression()) {
+            item.setTrack(this.track())
+            item.setParent(this.segment())
+            ;(item as unknown as Expression).setVoiceAssignment(this.voiceAssignment())
+            this.score().undoAddElement(item)
+            return item
+        }
+
+        return null
+    }
+
+    dynamicType(): DynamicType { return this.m_dynamicType }
+
+    /** setDynamicType(DynamicType) / setDynamicType(const String&) */
+    setDynamicType(val: DynamicType | string): void {
+        if (typeof val === 'string') {
+            const [type, text] = this.parseDynamicText(val)
+            this.m_dynamicType = type
+            this.setXmlText(text)
+        } else {
+            this.m_dynamicType = val
+        }
+    }
+
+    private parseDynamicText(tag: string): [DynamicType, string] {
+        for (const match of tag.matchAll(DYNAMIC_REGEX)) {
+            const matchStr = match[0]
+            for (let i = 0; i < DYN_LIST.length; ++i) {
+                if (TConv.toXmlDynamicType(i as DynamicType) === matchStr || DYN_LIST[i].text === matchStr) {
+                    const replaced = tag.substring(0, match.index) + DYN_LIST[i].text + tag.substring(match.index! + matchStr.length)
+                    return [i as DynamicType, replaced]
+                }
+            }
+        }
+        return [DynamicType.OTHER, tag]
+    }
+
+    override subtype(): number { return this.m_dynamicType }
+
+    hasCustomText(): boolean { return Dynamic.dynamicText(this.m_dynamicType) !== this.xmlText() }
+
+    setVelocity(v: number): void { this.m_velocity = v }
+    velocity(): number { return this.m_velocity <= 0 ? DYN_LIST[this.m_dynamicType].velocity : this.m_velocity }
+    changeInVelocity(): number {
+        return this.m_changeInVelocity >= 128 ? DYN_LIST[this.m_dynamicType].changeInVelocity : this.m_changeInVelocity
+    }
+    setChangeInVelocity(val: number): void {
+        if (DYN_LIST[this.m_dynamicType].changeInVelocity === val) {
+            this.m_changeInVelocity = 128
+        } else {
+            this.m_changeInVelocity = val
+        }
+    }
+
+    isVelocityChangeAvailable(): boolean {
+        switch (this.dynamicType()) {
+        case DynamicType.FP:
+        case DynamicType.SF:
+        case DynamicType.SFZ:
+        case DynamicType.SFF:
+        case DynamicType.SFFZ:
+        case DynamicType.SFFF:
+        case DynamicType.SFFFZ:
+        case DynamicType.SFP:
+        case DynamicType.SFPP:
+        case DynamicType.RFZ:
+        case DynamicType.RF:
+        case DynamicType.FZ:
+        case DynamicType.M:
+        case DynamicType.R:
+        case DynamicType.S:
+            return true
+        default:
+            return false
+        }
+    }
+    velChangeSpeed(): DynamicSpeed { return this.m_velChangeSpeed }
+
+    /** the time over which the velocity change occurs */
+    velocityChangeLength(): Fraction {
+        if (this.changeInVelocity() === 0) {
+            return Fraction.fromTicks(0)
+        }
+
+        const ratio = this.score().tempomap().multipliedTempo(this.segment().tick().ticks()) / Constants.DEFAULT_TEMPO
+        let speedMult: number
+        switch (this.velChangeSpeed()) {
+        case DynamicSpeed.SLOW:
+            speedMult = 1.3
+            break
+        case DynamicSpeed.FAST:
+            speedMult = 0.5
+            break
+        case DynamicSpeed.NORMAL:
+        default:
+            speedMult = 0.8
+            break
+        }
+
+        return Fraction.fromTicks(Math.trunc(ratio * (speedMult * Constants.DIVISION)))
+    }
+    setVelChangeSpeed(val: DynamicSpeed): void { this.m_velChangeSpeed = val }
+    playDynamic(): boolean { return this.m_playDynamic }
+    setPlayDynamic(v: boolean): void { this.m_playDynamic = v }
+    avoidBarLines(): boolean { return this.m_avoidBarLines }
+    setAvoidBarLines(v: boolean): void { this.m_avoidBarLines = v }
+    centerOnNotehead(): boolean { return this.m_centerOnNotehead }
+    setCenterOnNotehead(v: boolean): void { this.m_centerOnNotehead = v }
+
+    leftHairpin(): Spanner | null { return this.m_leftHairpin }
+    rightHairpin(): Spanner | null { return this.m_rightHairpin }
+
+    override positionRelativeToNoteheadRest(): boolean { return true }
+    override sizeIsSpatiumDependent(): boolean { return true }
+
+    snappedExpression(): Expression | null {
+        const item = this.ldata().itemSnappedAfter()
+        return item && item.isExpression() ? item as unknown as Expression : null
+    }
+
+    findAdjacentHairpins(): void {
+        this.m_leftHairpin = null
+        this.m_rightHairpin = null
+        const tick = this.segment().tick()
+        const intTick = tick.ticks()
+        for (const sp of this.score().spannerMap().findOverlapping(intTick - 1, intTick + 1)) {
+            if (sp.track() === this.track() && sp.isHairpin()) {
+                if (sp.tick().eq(tick)) {
+                    this.m_rightHairpin = sp
+                } else if (sp.tick2().eq(tick)) {
+                    this.m_leftHairpin = sp
+                }
+            }
+        }
+    }
+
+    override symShapeWithCutouts(id: SymId): Shape {
+        const stf = this.staff()
+        const staffMag = stf ? stf.staffMag(this.tick()) : 1.0
+        const shape = this.score().engravingFont().shapeWithCutouts(id, this.magS() * staffMag * this.symbolScale())
+        for (const element of shape.elements()) {
+            element.setItem(this)
+        }
+        return shape
+    }
+
+    override hasVoiceAssignmentProperties(): boolean { return true }
+
+    override getProperty(propertyId: Pid): PropertyValue {
+        switch (propertyId) {
+        case Pid.DYNAMIC_TYPE: return this.m_dynamicType
+        case Pid.VELOCITY: return this.velocity()
+        case Pid.VELO_CHANGE: return this.isVelocityChangeAvailable() ? this.changeInVelocity() : undefined
+        case Pid.VELO_CHANGE_SPEED: return this.m_velChangeSpeed
+        case Pid.AVOID_BARLINES: return this.m_avoidBarLines
+        case Pid.CENTER_ON_NOTEHEAD: return this.m_centerOnNotehead
+        case Pid.PLAY: return this.m_playDynamic
+        case Pid.ANCHOR_TO_END_OF_PREVIOUS: return this.anchorToEndOfPrevious()
+        default: return super.getProperty(propertyId)
+        }
+    }
+
+    override setProperty(propertyId: Pid, v: PropertyValue): boolean {
+        switch (propertyId) {
+        case Pid.DYNAMIC_TYPE: this.setDynamicType(v as DynamicType | string); break
+        case Pid.VELOCITY: this.m_velocity = v as number; break
+        case Pid.VELO_CHANGE:
+            if (this.isVelocityChangeAvailable()) {
+                this.setChangeInVelocity(v as number)
+            }
+            break
+        case Pid.VELO_CHANGE_SPEED: this.m_velChangeSpeed = v as DynamicSpeed; break
+        case Pid.AVOID_BARLINES: this.m_avoidBarLines = v as boolean; break
+        case Pid.CENTER_ON_NOTEHEAD: this.m_centerOnNotehead = v as boolean; break
+        case Pid.PLAY: this.m_playDynamic = v as boolean; break
+        case Pid.ANCHOR_TO_END_OF_PREVIOUS: this.setAnchorToEndOfPrevious(v as boolean); break
+        default:
+            if (!super.setProperty(propertyId, v)) {
+                return false
+            }
+            break
+        }
+        return true
+    }
+
+    override propertyDefault(id: Pid): PropertyValue {
+        switch (id) {
+        case Pid.TEXT_STYLE: return TextStyleType.DYNAMICS
+        case Pid.VELOCITY: return -1
+        case Pid.VELO_CHANGE:
+            return this.isVelocityChangeAvailable() ? DYN_LIST[this.dynamicType()].changeInVelocity : undefined
+        case Pid.VELO_CHANGE_SPEED: return DynamicSpeed.NORMAL
+        case Pid.PLAY: return true
+        case Pid.ANCHOR_TO_END_OF_PREVIOUS: return false
+        default: return super.propertyDefault(id)
+        }
+    }
+
+    override getPropertyStyle(pid: Pid): Sid {
+        switch (pid) {
+        case Pid.PLACEMENT: return Sid.dynamicsPlacement
+        default: return super.getPropertyStyle(pid)
+        }
+    }
+
+    override subtypeUserName(): TranslatableString {
+        if (this.dynamicType() === DynamicType.OTHER) {
+            let s = simplified(this.plainText())
+            if (s.length > 20) {
+                s = s.slice(0, 20)
+                s += '…'
+            }
+            return TranslatableString.untranslatable(s)
+        } else {
+            return TConv.userNameDynamicType(this.dynamicType())
+        }
+    }
+
+    override accessibleInfo(): string {
+        return `${this.translatedTypeUserName()}: ${this.translatedSubtypeUserName()}`
+    }
+}

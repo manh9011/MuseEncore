@@ -1,0 +1,41 @@
+import { chromium } from 'playwright-core'
+import { PNG } from 'pngjs'
+import pixelmatch from 'pixelmatch'
+import { readFileSync, writeFileSync } from 'node:fs'
+import assert from 'node:assert/strict'
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' })
+for (const [name, port] of [['react', 5180], ['vue', 5174]]) {
+  const context=await browser.newContext({viewport:{width:1280,height:800},deviceScaleFactor:1,hasTouch:true,isMobile:true});const page=await context.newPage()
+  await page.route('http://scores.test/**', route => route.fulfill({ path: 'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz', headers: { 'access-control-allow-origin': '*' } }))
+  await page.addInitScript(() => localStorage.setItem('musescoreweb:settings', JSON.stringify({ project: { migration: { Pre_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false }, Ver_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false } } } })))
+  await page.goto(`${port===5180?'http://[::1]':'http://127.0.0.1'}:${port}/?url=http://scores.test/test.mscz`)
+  const trigger = page.getByRole('button', { name: 'Customize toolbar' })
+  await trigger.waitFor({ timeout: 30000 })
+  await page.waitForTimeout(10000)
+  await trigger.tap()
+  const popup = page.locator('.customise-popup')
+  await popup.waitFor()
+  console.log(name, await popup.boundingBox(), 'items', await popup.locator('[role=option]').count())
+  await page.screenshot({ path: `customise-touch-${name}.png` })
+  const option = popup.locator('[data-action="pad-note-64"]')
+  const checkbox = option.locator('input[type=checkbox]')
+  const button = page.locator('.dock-top button[data-action="pad-note-64"]')
+  assert.equal(await checkbox.isChecked(), true)
+  assert.equal(await button.count(), 1)
+  await checkbox.tap()
+  assert.equal(await checkbox.isChecked(), false)
+  assert.equal(await button.count(), 0)
+  await checkbox.tap()
+  assert.equal(await button.count(), 1)
+  await popup.locator('[role=option]').first().focus()
+  await page.keyboard.press('Escape')
+  assert.equal(await popup.count(), 0)
+  assert.equal(await trigger.evaluate(e => document.activeElement === e), true)
+  console.log(name, 'touch toggle, Escape and close passed')
+  await page.close()
+}
+await browser.close()
+const a = PNG.sync.read(readFileSync('customise-touch-react.png')), b = PNG.sync.read(readFileSync('customise-touch-vue.png'))
+const diff = new PNG({ width: a.width, height: a.height })
+console.log('different pixels', pixelmatch(a.data, b.data, diff.data, a.width, a.height, { threshold: 0.1 }))
+writeFileSync('customise-touch-diff.png', PNG.sync.write(diff))

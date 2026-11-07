@@ -1,0 +1,22 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+import { PNG } from 'pngjs'
+import pixelmatch from 'pixelmatch'
+import { readFileSync, writeFileSync } from 'node:fs'
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' })
+for (const [name, port] of [['react', 5180], ['vue', 5174]]) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true })
+  await page.route('http://scores.test/**', route => route.fulfill({ path: 'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz', headers: { 'access-control-allow-origin': '*' } }))
+  await page.addInitScript(() => localStorage.setItem('musescoreweb:settings', JSON.stringify({ project: { migration: { Pre_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false }, Ver_3_6: { appVersion: 470, isApplyMigration: false, isAskAgain: false } } } })))
+  let scoreUrl,apiUrl;page.on('response',r=>{if(r.url().includes('/scoreview.ts'))scoreUrl=r.url();if(r.url().includes('/src/index.ts'))apiUrl=r.url()});await page.goto(`http://localhost:${port}/?url=http://scores.test/test.mscz`)
+  await page.waitForSelector('.zoom-select', { timeout: 30000 })
+  await page.waitForTimeout(10000)
+  await page.locator('[data-toolbar="playbackToolBar"] [data-action="play"]').tap()
+  await page.waitForFunction(() => window.__museencorePlayback?.state().tick > 1920,{timeout:20000});await page.evaluate(()=>{const p=window.__museencorePlayback.player;p.position=()=>5});await page.waitForTimeout(300);console.log(name,'frozen',await page.evaluate(()=>window.__museencorePlayback.state().tick),await page.locator('.playback-cursor').boundingBox());await page.screenshot({path:`playback-frozen-mobile-${name}.png`});
+  await page.close()
+}
+await browser.close()
+const a = PNG.sync.read(readFileSync('playback-frozen-mobile-react.png')), b = PNG.sync.read(readFileSync('playback-frozen-mobile-vue.png'))
+const diff = new PNG({ width: a.width, height: a.height })
+console.log('different pixels', pixelmatch(a.data, b.data, diff.data, a.width, a.height, { threshold: 0.1 }))
+writeFileSync('playback-frozen-mobile-diff.png', PNG.sync.write(diff))

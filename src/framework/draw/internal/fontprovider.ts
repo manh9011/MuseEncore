@@ -1,0 +1,652 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseEncore — port of MuseScore Studio (https://github.com/musescore/MuseScore)
+ * Copyright (C) 2021-2026 MuseScore Limited and others
+ *
+ * Replacement for src/framework/draw/internal/qfontprovider.cpp
+ *
+ * The desktop app measures text with Qt (QFontMetricsF) on a virtual paint
+ * device of 1200 DPI. Here the same metrics are computed from the font files
+ * with opentype.js, so layout is identical in the browser and in node.
+ */
+
+import * as opentypeNs from 'opentype.js'
+import { PointF, RectF } from '../types/geometry'
+import { Font, FontType } from '../types/font'
+import { PainterPath } from '../types/painterpath'
+
+// node resolves the CommonJS build, where the API is on the default export
+const opentype: typeof opentypeNs = (opentypeNs as unknown as { default?: typeof opentypeNs }).default ?? opentypeNs
+
+/** Same as mu::engraving::DPI */
+const ENGRAVING_DPI = 1200
+const PPI = 72
+
+interface FaceEntry {
+    /** unique per loaded face (glyph ids of the SVG output) */
+    id: number
+    family: string
+    bold: boolean
+    italic: boolean
+    otf: opentypeNs.Font
+    glyphPaths: Map<number, PainterPath>   // in font units, y down
+    glyphBBoxes: Map<number, RectF>        // in font units, y down
+    serif?: boolean
+}
+
+/** A font of the platform used for characters that the loaded fonts do not have */
+export interface FallbackFont {
+    /** in pixels, like the font sizes of the layout */
+    pixelSize: number
+    bold: boolean
+    italic: boolean
+    /** generic family: Qt falls back to a font of the same kind (e.g. Songti for a serif font on macOS) */
+    serif: boolean
+}
+
+/**
+ * Qt draws characters missing in a font with a system font (font fallback). The loaded fonts are
+ * drawn from their outlines here, so the fallback needs the platform: it measures text in a FallbackFont
+ * and the paint provider draws it (IPaintProvider.drawFallbackText).
+ */
+export interface FallbackFontEngine {
+    /** advance and ink box (origin at the baseline, y down) in pixels, null if the text cannot be measured */
+    measure(text: string, font: FallbackFont): { advance: number; bbox: RectF } | null
+}
+
+/** CSS font string of a fallback font, for canvas measuring and drawing */
+export function fallbackCssFont(font: FallbackFont): string {
+    return `${font.italic ? 'italic ' : ''}${font.bold ? 'bold ' : ''}${font.pixelSize}px ${font.serif ? 'serif' : 'sans-serif'}`
+}
+
+/** Measures with a canvas 2D context (browsers), null if there is no canvas */
+export function createCanvasFallbackFontEngine(): FallbackFontEngine | null {
+    let ctx: { font: string; measureText(t: string): TextMetrics } | null = null
+    try {
+        if (typeof OffscreenCanvas !== 'undefined') {
+            ctx = new OffscreenCanvas(1, 1).getContext('2d')
+        } else if (typeof document !== 'undefined') {
+            ctx = document.createElement('canvas').getContext('2d')
+        }
+    } catch {
+        ctx = null
+    }
+    if (!ctx) {
+        return null
+    }
+    const c = ctx
+    const cache = new Map<string, { advance: number; bbox: RectF } | null>()
+    return {
+        measure(text: string, font: FallbackFont): { advance: number; bbox: RectF } | null {
+            const css = fallbackCssFont(font)
+            const k = css + '\n' + text
+            let r = cache.get(k)
+            if (r === undefined) {
+                c.font = css
+                const m = c.measureText(text)
+                r = {
+                    advance: m.width,
+                    bbox: new RectF(-m.actualBoundingBoxLeft, -m.actualBoundingBoxAscent,
+                        m.actualBoundingBoxLeft + m.actualBoundingBoxRight, m.actualBoundingBoxAscent + m.actualBoundingBoxDescent),
+                }
+                cache.set(k, r)
+            }
+            return r
+        },
+    }
+}
+
+// undefined: not decided yet, a canvas engine is created on first use if the platform has a canvas
+let s_fallbackEngine: FallbackFontEngine | null | undefined
+
+/** Sets the engine for characters missing in the loaded fonts (null disables the fallback) */
+export function setFallbackFontEngine(engine: FallbackFontEngine | null): void {
+    s_fallbackEngine = engine
+}
+
+function fallbackEngine(): FallbackFontEngine | null {
+    if (s_fallbackEngine === undefined) {
+        s_fallbackEngine = createCanvasFallbackFontEngine()
+    }
+    return s_fallbackEngine
+}
+
+/** text drawn with a fallback font, x relative to the start of the run */
+export interface FallbackSegment {
+    text: string
+    x: number
+    advance: number
+    bbox: RectF
+    font: FallbackFont
+}
+
+/** a positioned glyph, for paint providers that define each glyph outline once (SVG <use>) */
+export interface GlyphRef {
+    /** unique per face and glyph */
+    key: string
+    /** outline in font units, y down */
+    path(): PainterPath
+    /** font units -> pixels */
+    scale: number
+    /** origin (baseline) */
+    x: number
+    y: number
+}
+
+let s_nextFaceId = 0
+
+export interface GlyphRun {
+    face: FaceEntry
+    /** glyph indices */
+    glyphs: number[]
+    /** x positions of the glyph origins, in pixels of the given font */
+    xs: number[]
+    /** total advance */
+    advance: number
+    /** scale: font units -> pixels */
+    scale: number
+    /** parts of the text that are not in the font */
+    fallbacks: FallbackSegment[]
+}
+
+function key(family: string): string {
+    return family.toLowerCase()
+}
+
+export class FontsDatabase {
+    private m_faces = new Map<string, FaceEntry[]>()
+    private m_aliases = new Map<string, string>()
+    private m_defaultTextFamily = 'Edwin'
+    private m_defaultSymbolFamily = 'Leland'
+
+    addFont(family: string, data: ArrayBuffer | Uint8Array, opts: { bold?: boolean; italic?: boolean } = {}): void {
+        const buffer = data instanceof Uint8Array
+            ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+            : data
+        const otf = opentype.parse(buffer)
+        const entry: FaceEntry = {
+            id: s_nextFaceId++,
+            family,
+            bold: !!opts.bold,
+            italic: !!opts.italic,
+            otf,
+            glyphPaths: new Map(),
+            glyphBBoxes: new Map(),
+        }
+        const list = this.m_faces.get(key(family)) ?? []
+        // replace an existing face with the same style
+        const idx = list.findIndex(f => f.bold === entry.bold && f.italic === entry.italic)
+        if (idx >= 0) {
+            list[idx] = entry
+        } else {
+            list.push(entry)
+        }
+        this.m_faces.set(key(family), list)
+    }
+
+    /** the families of the added fonts (C++: QFontDatabase::families) */
+    families(): string[] {
+        return [...this.m_faces.values()].map(list => list[0].family)
+    }
+
+    hasFamily(family: string): boolean {
+        return this.m_faces.has(key(family)) || this.m_aliases.has(key(family))
+    }
+
+    /** Maps a font family that is not available to another one */
+    addAlias(alias: string, family: string): void {
+        this.m_aliases.set(key(alias), family)
+    }
+
+    setDefaultTextFamily(family: string): void { this.m_defaultTextFamily = family }
+    setDefaultSymbolFamily(family: string): void { this.m_defaultSymbolFamily = family }
+
+    face(font: Font): FaceEntry | null {
+        let list = this.m_faces.get(key(font.family()))
+        if (!list) {
+            const alias = this.m_aliases.get(key(font.family()))
+            if (alias) {
+                list = this.m_faces.get(key(alias))
+            }
+        }
+        if (!list) {
+            const isSymbol = font.type() === FontType.MusicSymbol
+            list = this.m_faces.get(key(isSymbol ? this.m_defaultSymbolFamily : this.m_defaultTextFamily))
+        }
+        if (!list || list.length === 0) {
+            return null
+        }
+        const bold = font.bold()
+        const italic = font.italic()
+        return list.find(f => f.bold === bold && f.italic === italic)
+               ?? list.find(f => f.bold === bold)
+               ?? list.find(f => f.italic === italic)
+               ?? list.find(f => !f.bold && !f.italic)
+               ?? list[0]
+    }
+}
+
+export class FontProvider {
+    constructor(private m_db: FontsDatabase) {}
+
+    database(): FontsDatabase { return this.m_db }
+
+    /** Pixel size at 1200 DPI, as QFont would compute it on the engraving paint device */
+    static pixelSize(f: Font): number {
+        if (f.pixelSize() > 0) {
+            return f.pixelSize()
+        }
+        return f.pointSizeF() * ENGRAVING_DPI / PPI
+    }
+
+    private scale(face: FaceEntry, f: Font): number {
+        return FontProvider.pixelSize(f) / face.otf.unitsPerEm
+    }
+
+    /**
+     * Qt QFontEngine::initializeHeightMetrics(): hhea metrics, overridden by the OS/2 typo metrics
+     * (MuseScore's Font::toQFont() sets QFont::PreferTypoLineMetrics)
+     */
+    private hhea(face: FaceEntry): { ascender: number; descender: number; lineGap: number } {
+        const os2 = face.otf.tables.os2
+        if (os2 && (os2.sTypoAscender !== 0 || os2.sTypoDescender !== 0)) {
+            return { ascender: os2.sTypoAscender, descender: os2.sTypoDescender, lineGap: os2.sTypoLineGap }
+        }
+        const h = face.otf.tables.hhea
+        if (h && (h.ascender !== 0 || h.descender !== 0)) {
+            return h
+        }
+        return { ascender: face.otf.ascender, descender: face.otf.descender, lineGap: 0 }
+    }
+
+    lineSpacing(f: Font): number {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return 0
+        }
+        const h = this.hhea(face)
+        return (h.ascender - h.descender + h.lineGap) * this.scale(face, f)
+    }
+
+    xHeight(f: Font): number {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return 0
+        }
+        const os2 = face.otf.tables.os2
+        if (os2 && os2.sxHeight) {
+            return os2.sxHeight * this.scale(face, f)
+        }
+        const r = this.charBBoxUnits(face, 'x'.codePointAt(0)!)
+        return r ? r.height() * this.scale(face, f) : 0
+    }
+
+    height(f: Font): number {
+        return this.ascent(f) + this.descent(f)
+    }
+
+    capHeight(f: Font): number {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return 0
+        }
+        const os2 = face.otf.tables.os2
+        if (os2 && os2.sCapHeight) {
+            return os2.sCapHeight * this.scale(face, f)
+        }
+        const r = this.charBBoxUnits(face, 'X'.codePointAt(0)!)
+        return r ? r.height() * this.scale(face, f) : 0
+    }
+
+    ascent(f: Font): number {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return 0
+        }
+        return this.hhea(face).ascender * this.scale(face, f)
+    }
+
+    descent(f: Font): number {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return 0
+        }
+        return -this.hhea(face).descender * this.scale(face, f)
+    }
+
+    inFont(f: Font, ucs4: number): boolean {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return false
+        }
+        const idx = face.otf.charToGlyphIndex(String.fromCodePoint(ucs4))
+        if (!idx) {
+            return false
+        }
+        // some symbols in fonts dont have glyph (see QFontProvider::inFont)
+        const bb = this.glyphBBoxUnits(face, idx)
+        return bb.isValid()
+    }
+
+    horizontalAdvance(f: Font, text: string | number): number {
+        const s = typeof text === 'number' ? String.fromCodePoint(text) : text
+        const run = this.glyphRun(f, s)
+        return run ? run.advance : 0
+    }
+
+    /**
+     * For a string: QFontMetricsF::boundingRect(QString), i.e. union of the glyph ink boxes and the origin.
+     * For a single code point of a music font: the exact vector bbox of the glyph.
+     */
+    boundingRect(f: Font, text: string | number): RectF {
+        if (typeof text === 'number') {
+            const face = this.m_db.face(f)
+            if (!face) {
+                return new RectF()
+            }
+            const idx = face.otf.charToGlyphIndex(String.fromCodePoint(text))
+            if (!idx) {
+                return new RectF()
+            }
+            const s = this.scale(face, f)
+            const bb = this.glyphBBoxUnits(face, idx)
+            return new RectF(bb.x() * s, bb.y() * s, bb.width() * s, bb.height() * s)
+        }
+
+        const run = this.glyphRun(f, text)
+        if (!run) {
+            return new RectF()
+        }
+        let x0 = 0
+        let y0 = 0
+        let x1 = 0
+        let y1 = 0
+        for (let i = 0; i < run.glyphs.length; ++i) {
+            const bb = this.glyphBBoxUnits(run.face, run.glyphs[i])
+            if (!bb.isValid()) {
+                continue
+            }
+            const gx = run.xs[i] + bb.x() * run.scale
+            const gy = bb.y() * run.scale
+            x0 = Math.min(x0, gx)
+            y0 = Math.min(y0, gy)
+            x1 = Math.max(x1, gx + bb.width() * run.scale)
+            y1 = Math.max(y1, gy + bb.height() * run.scale)
+        }
+        for (const fb of run.fallbacks) {
+            x0 = Math.min(x0, fb.x + fb.bbox.left())
+            y0 = Math.min(y0, fb.bbox.top())
+            x1 = Math.max(x1, fb.x + fb.bbox.right())
+            y1 = Math.max(y1, fb.bbox.bottom())
+        }
+        // logical width at least the advance
+        x1 = Math.max(x1, run.advance)
+        return new RectF(x0, y0, x1 - x0, y1 - y0)
+    }
+
+    /** exact ink bounding box */
+    tightBoundingRect(f: Font, text: string | number): RectF {
+        const s = typeof text === 'number' ? String.fromCodePoint(text) : text
+        const run = this.glyphRun(f, s)
+        if (!run) {
+            return new RectF()
+        }
+        let r = new RectF()
+        for (let i = 0; i < run.glyphs.length; ++i) {
+            const bb = this.glyphBBoxUnits(run.face, run.glyphs[i])
+            if (!bb.isValid()) {
+                continue
+            }
+            r = r.united(new RectF(run.xs[i] + bb.x() * run.scale, bb.y() * run.scale,
+                bb.width() * run.scale, bb.height() * run.scale))
+        }
+        for (const fb of run.fallbacks) {
+            if (fb.bbox.isValid()) {
+                r = r.united(fb.bbox.translated(new PointF(fb.x, 0)))
+            }
+        }
+        return r
+    }
+
+    /**
+     * Shapes a string: glyph lookup with standard ligatures and pair kerning (like HarfBuzz in Qt would do).
+     * Characters that are not in the font are measured with the fallback engine (if any), like Qt's font fallback.
+     */
+    glyphRun(f: Font, text: string): GlyphRun | null {
+        const face = this.m_db.face(f)
+        if (!face) {
+            return null
+        }
+        const scale = this.scale(face, f)
+        const run: GlyphRun = { face, glyphs: [], xs: [], advance: 0, scale, fallbacks: [] }
+        const isSymbol = f.type() === FontType.MusicSymbol
+        const engine = isSymbol ? null : fallbackEngine()
+        if (!engine) {
+            this.shapeInto(run, f, text)
+            return run
+        }
+        // split into parts that are in the font and parts that are not
+        const chars = Array.from(text)
+        let i = 0
+        while (i < chars.length) {
+            const missing = !face.otf.charToGlyphIndex(chars[i])
+            let j = i + 1
+            while (j < chars.length && !face.otf.charToGlyphIndex(chars[j]) === missing) {
+                ++j
+            }
+            const part = chars.slice(i, j).join('')
+            const fbFont: FallbackFont = { pixelSize: FontProvider.pixelSize(f), bold: f.bold(), italic: f.italic(), serif: this.isSerif(face) }
+            const m = missing ? engine.measure(part, fbFont) : null
+            if (m) {
+                run.fallbacks.push({ text: part, x: run.advance, advance: m.advance, bbox: m.bbox, font: fbFont })
+                run.advance += m.advance
+            } else {
+                this.shapeInto(run, f, part)
+            }
+            i = j
+        }
+        return run
+    }
+
+    /** appends the shaped glyphs of `text` (all in the run's face) to the run */
+    private shapeInto(run: GlyphRun, f: Font, text: string): void {
+        const scale = run.scale
+        const otf = run.face.otf
+        const isSymbol = f.type() === FontType.MusicSymbol
+        let glyphs: opentypeNs.Glyph[]
+        if (isSymbol) {
+            glyphs = Array.from(text).map(ch => otf.glyphs.get(otf.charToGlyphIndex(ch)))
+        } else {
+            try {
+                glyphs = otf.stringToGlyphs(text, { features: { liga: true, rlig: true } })
+            } catch {
+                glyphs = Array.from(text).map(ch => otf.glyphs.get(otf.charToGlyphIndex(ch)))
+            }
+        }
+
+        // Qt (HarfBuzz) kerns strings of music symbol fonts too, e.g. "pp" of dynamics in text (MScore: -29 units)
+        let kerningLookups: unknown = null
+        {
+            try {
+                kerningLookups = otf.position.getKerningTables(otf.position.getDefaultScriptName())
+            } catch {
+                kerningLookups = null
+            }
+        }
+
+        let x = run.advance
+        for (let i = 0; i < glyphs.length; ++i) {
+            const g = glyphs[i]
+            run.glyphs.push(g.index)
+            run.xs.push(x)
+            x += (g.advanceWidth ?? 0) * scale
+            if (i < glyphs.length - 1) {
+                let kern = 0
+                try {
+                    kern = kerningLookups
+                        ? otf.position.getKerningValue(kerningLookups, g.index, glyphs[i + 1].index)
+                        : otf.getKerningValue(g, glyphs[i + 1])
+                } catch {
+                    kern = 0
+                }
+                x += kern * scale
+            }
+        }
+        run.advance = x
+    }
+
+    /** sans serif if PANOSE or the name say so (Edwin has no PANOSE data) */
+    private isSerif(face: FaceEntry): boolean {
+        if (face.serif === undefined) {
+            const panose = face.otf.tables.os2?.panose
+            const sansPanose = !!panose && panose[0] === 2 && panose[1] >= 11 && panose[1] <= 13
+            face.serif = !sansPanose && !/sans/i.test(face.family)
+        }
+        return face.serif
+    }
+
+    /**
+     * Path of a shaped string, with origin at the baseline start, in pixels.
+     * Parts drawn with a fallback font are not in the path, they are added to `fallbacks` (positions absolute).
+     */
+    textPath(f: Font, text: string, pos: PointF = new PointF(), fallbacks?: FallbackSegment[]): PainterPath {
+        const path = new PainterPath()
+        const run = this.glyphRun(f, text)
+        if (!run) {
+            return path
+        }
+        for (let i = 0; i < run.glyphs.length; ++i) {
+            this.appendGlyph(path, run.face, run.glyphs[i], run.scale, pos.x() + run.xs[i], pos.y())
+        }
+        for (const fb of run.fallbacks) {
+            fallbacks?.push({ ...fb, x: pos.x() + fb.x })
+        }
+        return path
+    }
+
+    /** The glyphs of textPath() as references; fallback parts are added to `fallbacks` */
+    textGlyphs(f: Font, text: string, pos: PointF = new PointF(), fallbacks?: FallbackSegment[]): GlyphRef[] {
+        const run = this.glyphRun(f, text)
+        if (!run) {
+            return []
+        }
+        const refs = run.glyphs.map((g, i) => this.glyphRef(run.face, g, run.scale, pos.x() + run.xs[i], pos.y()))
+        for (const fb of run.fallbacks) {
+            fallbacks?.push({ ...fb, x: pos.x() + fb.x })
+        }
+        return refs
+    }
+
+    /** The glyph of symbolPath() as reference */
+    symbolGlyphs(f: Font, ucs4: number, pos: PointF = new PointF()): GlyphRef[] {
+        const face = this.m_db.face(f)
+        const idx = face ? face.otf.charToGlyphIndex(String.fromCodePoint(ucs4)) : 0
+        return face && idx ? [this.glyphRef(face, idx, this.scale(face, f), pos.x(), pos.y())] : []
+    }
+
+    private glyphRef(face: FaceEntry, glyphIdx: number, scale: number, x: number, y: number): GlyphRef {
+        return { key: `${face.id}-${glyphIdx}`, path: () => this.glyphPathUnits(face, glyphIdx), scale, x, y }
+    }
+
+    /** Path of a single code point (no shaping), in pixels */
+    symbolPath(f: Font, ucs4: number, pos: PointF = new PointF()): PainterPath {
+        const path = new PainterPath()
+        const face = this.m_db.face(f)
+        if (!face) {
+            return path
+        }
+        const idx = face.otf.charToGlyphIndex(String.fromCodePoint(ucs4))
+        if (!idx) {
+            return path
+        }
+        this.appendGlyph(path, face, idx, this.scale(face, f), pos.x(), pos.y())
+        return path
+    }
+
+    private appendGlyph(path: PainterPath, face: FaceEntry, glyphIdx: number, scale: number, ox: number, oy: number): void {
+        const els = this.glyphPathUnits(face, glyphIdx).elements()
+        const pt = (i: number): PointF => new PointF(ox + els[i].x * scale, oy + els[i].y * scale)
+        for (let i = 0; i < els.length; ++i) {
+            switch (els[i].type) {
+            case PainterPath.ElementType.MoveToElement:
+                path.moveTo(pt(i))
+                break
+            case PainterPath.ElementType.LineToElement:
+                path.lineTo(pt(i))
+                break
+            case PainterPath.ElementType.CurveToElement:
+                path.cubicTo(pt(i), pt(i + 1), pt(i + 2))
+                i += 2
+                break
+            default:
+                break
+            }
+        }
+    }
+
+    // Font-unit cache helpers -------------------------------------------------
+
+    private charBBoxUnits(face: FaceEntry, ucs4: number): RectF | null {
+        const idx = face.otf.charToGlyphIndex(String.fromCodePoint(ucs4))
+        if (!idx) {
+            return null
+        }
+        return this.glyphBBoxUnits(face, idx)
+    }
+
+    glyphBBoxUnits(face: FaceEntry, glyphIdx: number): RectF {
+        let bb = face.glyphBBoxes.get(glyphIdx)
+        if (!bb) {
+            bb = this.glyphPathUnits(face, glyphIdx).boundingRect()
+            if (this.glyphPathUnits(face, glyphIdx).isEmpty()) {
+                bb = new RectF()
+            }
+            face.glyphBBoxes.set(glyphIdx, bb)
+        }
+        return bb
+    }
+
+    /** glyph outline in font units, y axis pointing down (like Qt) */
+    glyphPathUnits(face: FaceEntry, glyphIdx: number): PainterPath {
+        let p = face.glyphPaths.get(glyphIdx)
+        if (p) {
+            return p
+        }
+        p = new PainterPath()
+        p.setFillRule(PainterPath.FillRule.WindingFill)
+        const glyph = face.otf.glyphs.get(glyphIdx)
+        let cx = 0
+        let cy = 0
+        for (const c of glyph?.path?.commands ?? []) {
+            switch (c.type) {
+            case 'M':
+                p.moveTo(c.x!, -c.y!)
+                cx = c.x!; cy = c.y!
+                break
+            case 'L':
+                p.lineTo(c.x!, -c.y!)
+                cx = c.x!; cy = c.y!
+                break
+            case 'C':
+                p.cubicTo(new PointF(c.x1!, -c.y1!), new PointF(c.x2!, -c.y2!), new PointF(c.x!, -c.y!))
+                cx = c.x!; cy = c.y!
+                break
+            case 'Q': {
+                // convert quadratic to cubic
+                const c1x = cx + 2 / 3 * (c.x1! - cx)
+                const c1y = cy + 2 / 3 * (c.y1! - cy)
+                const c2x = c.x! + 2 / 3 * (c.x1! - c.x!)
+                const c2y = c.y! + 2 / 3 * (c.y1! - c.y!)
+                p.cubicTo(new PointF(c1x, -c1y), new PointF(c2x, -c2y), new PointF(c.x!, -c.y!))
+                cx = c.x!; cy = c.y!
+                break
+            }
+            case 'Z':
+                p.closeSubpath()
+                break
+            }
+        }
+        face.glyphPaths.set(glyphIdx, p)
+        return p
+    }
+}

@@ -1,0 +1,30 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { actionTitle, isActionChecked, isActionEnabled, isCheckable, shortcutText, triggerAction, useActions } from '../actions/actions'
+import { stripMnemonic, trString, useLanguage } from '../i18n'
+import type { MenuItem } from '../menus/appmenu'
+import { menuItems } from './Menu.vue'
+const props = withDefaults(defineProps<{items:MenuItem[]; anchor:DOMRect; placement:'below'|'right'; label:string; initialFocus?:'first'|'last'|'none'; isSubmenu?:boolean}>(),{initialFocus:'first'})
+const emit = defineEmits<{close:[focus:boolean]; left:[]; right:[]}>()
+const actions = useActions(); useLanguage()
+const root=ref<HTMLElement|null>(null), active=ref(-1), sub=ref<{index:number;focus:'first'|'none'}|null>(null), pos=ref({left:-9999,top:-9999})
+const refs: HTMLElement[] = []
+const focusable=computed(()=>props.items.map((it,i)=>it.kind==='separator'?-1:i).filter(i=>i>=0))
+function title(it:MenuItem) { return it.kind==='action' ? stripMnemonic(actionTitle(it.code,it.title)) : it.kind==='menu' ? stripMnemonic(trString(it.title)) : '' }
+function enabled(it:MenuItem):boolean { return it.kind==='action' ? isActionEnabled(it.code) : it.kind==='menu' && menuItems(it).some(enabled) }
+function setActive(i:number) { active.value=i; void nextTick(()=>refs[i]?.focus({preventScroll:true})) }
+function activate(i:number) { const it=props.items[i]; if (!it || !enabled(it)) return; if(it.kind==='menu') sub.value={index:i,focus:'first'}; else if(it.kind==='action') { emit('close',true); setTimeout(()=>triggerAction(it.code,it.args)) } }
+function move(dir:1|-1) { const list=focusable.value, index=list.indexOf(active.value); if(list.length) setActive(list[index<0 ? (dir>0?0:list.length-1) : (index+dir+list.length)%list.length]); sub.value=null }
+function keydown(e:KeyboardEvent) { if(sub.value) return; let handled=true; switch(e.key) { case 'ArrowDown':move(1);break; case 'ArrowUp':move(-1);break;case 'Home':setActive(focusable.value[0]);break;case 'End':setActive(focusable.value.at(-1)!);break;case 'ArrowRight': {const it=props.items[active.value]; if(it?.kind==='menu' && enabled(it)) sub.value={index:active.value,focus:'first'};else emit('right');break} case 'ArrowLeft':emit('left');break;case 'Enter':case ' ':activate(active.value);break;case 'Escape':emit('close',true);break;case 'Tab':emit('close',false);handled=false;break;default:if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){const list=focusable.value,start=list.indexOf(active.value), order=[...list.slice(start+1),...list.slice(0,start+1)],hit=order.find(i=>title(props.items[i]).toLowerCase().startsWith(e.key.toLowerCase()));if(hit!==undefined)setActive(hit)}else handled=false } if(handled){e.preventDefault();e.stopPropagation()} }
+function outside(e:PointerEvent){const t=e.target instanceof Element?e.target:null;if(!t?.closest('.menu-popup, [aria-haspopup][aria-expanded="true"]')) emit('close',false)}
+function escape(e:KeyboardEvent){if(e.key==='Escape'&&!document.activeElement?.closest('.menu-popup')){e.preventDefault();e.stopPropagation();emit('close',true)}}
+function blur(){emit('close',false)}
+onMounted(()=>{ const el=root.value!;const r=el.getBoundingClientRect(),a=props.anchor,rtl=document.documentElement.dir==='rtl';let left=props.placement==='below'?(rtl?a.right-r.width:a.left):(rtl?a.left-r.width:a.right),top=props.placement==='below'?a.bottom:a.top-4;if(left+r.width>innerWidth-4)left=props.placement==='right'?a.left-r.width:innerWidth-4-r.width;if(left<4)left=props.placement==='right'?a.right:4;if(top+r.height>innerHeight-4)top=Math.max(4,props.placement==='right'?innerHeight-4-r.height:a.top-r.height);pos.value={left,top};if(props.initialFocus==='none')el.focus({preventScroll:true});else if(focusable.value.length)setActive(props.initialFocus==='first'?focusable.value[0]:focusable.value.at(-1)!);if(!props.isSubmenu){document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape,true);window.addEventListener('blur',blur)} })
+onUnmounted(()=>{document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape,true);window.removeEventListener('blur',blur)})
+watch(()=>props.items,()=>{sub.value=null})
+</script>
+<template><div ref="root" :data-action-version="actions" class="menu-popup" role="menu" :aria-label="label" tabindex="-1" :style="{left: `${pos.left}px`,top: `${pos.top}px`}" @keydown="keydown" @contextmenu.prevent>
+  <template v-for="(it,i) in items" :key="i"><div v-if="it.kind==='separator'" class="menu-separator" role="separator" /><div v-else :ref="el=>{if(el) refs[i]=el as HTMLElement}" class="menu-item" :class="{active:i===active}" :role="it.kind==='action' && isCheckable(it.code) ? 'menuitemcheckbox':'menuitem'" :aria-checked="it.kind==='action' && isCheckable(it.code) ? isActionChecked(it.code) : undefined" :aria-disabled="!enabled(it)" :aria-haspopup="it.kind==='menu'?'menu':undefined" :aria-expanded="it.kind==='menu'?sub?.index===i:undefined" :tabindex="i===active?0:-1" @pointerenter="active=i;sub=it.kind==='menu' && enabled(it)?{index:i,focus:'none'}:null" @click="activate(i)"><span class="menu-check" aria-hidden="true">{{ it.kind==='action' && isActionChecked(it.code) ? '' : '' }}</span><span class="menu-title">{{ title(it) }}</span><span v-if="it.kind==='action' && shortcutText(it.code)" class="menu-shortcut">{{ shortcutText(it.code) }}</span><span v-if="it.kind==='menu'" class="menu-arrow" aria-hidden="true"></span></div></template>
+  <MenuPopup v-if="sub && items[sub.index]?.kind==='menu' && refs[sub.index]" :items="menuItems(items[sub.index] as Extract<MenuItem,{kind:'menu'}>)" :anchor="refs[sub.index].getBoundingClientRect()" placement="right" :label="title(items[sub.index])" :initial-focus="sub.focus" is-submenu @close="focus=>{sub=null;emit('close',focus)}" @left="()=>{const i=sub!.index;sub=null;setActive(i)}" @right="emit('right')" />
+</div></template>

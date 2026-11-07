@@ -1,0 +1,3 @@
+import {chromium} from 'playwright-core';
+const b=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+for(const [size,viewport] of [['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]])for(const [label,port]of[['react',5173],['vue',5174]]){const p=await b.newPage({viewport});await p.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle',timeout:60000});await p.getByText('New', {exact:true}).first().click().catch(()=>{});await p.waitForTimeout(700);await p.screenshot({path:`visual-score-${label}-${size}.png`,fullPage:true});console.log(label,size,await p.locator('body').innerText().then(x=>x.slice(0,100)));await p.close()}await b.close()
