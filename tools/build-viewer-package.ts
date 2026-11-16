@@ -15,9 +15,10 @@ const DIST = join(PKG, 'dist')
 await build({ configFile: join(ROOT, 'viewer/vite.lib.config.ts'), logLevel: 'warn' })
 
 // the declarations: the public types and the entry (the implementation's types are not part of the API)
-execFileSync(join(ROOT, 'node_modules/.bin/tsc'), [
+execFileSync(process.execPath, [
+    join(ROOT, 'node_modules/typescript/bin/tsc'),
     join(ROOT, 'viewer/src/types.ts'), '--declaration', '--emitDeclarationOnly', '--strict', '--target', 'ES2022',
-    '--lib', 'ES2022,DOM,DOM.Iterable', '--skipLibCheck', '--types', '', '--ignoreConfig', '--outDir', DIST,
+    '--lib', 'ES2022,DOM,DOM.Iterable', '--skipLibCheck', '--outDir', DIST,
 ], { stdio: 'inherit' })
 writeFileSync(join(DIST, 'muse-encore-viewer.d.ts'), `// SPDX-License-Identifier: GPL-3.0-only
 import type { MuseEncoreScoreSource, MuseEncoreViewer, MuseEncoreViewerOptions } from './types'

@@ -1,5 +1,8 @@
 # Work history
 
+## Viewer package build
+- Use the installed TypeScript 5 compiler without unsupported CLI options; invoke it through Node on Windows and Linux.
+
 ## GitHub Pages checkout
 - Disabled submodule checkout: MuseScore build assets are tracked directly, while the unrelated upstream/muse-encore gitlink has no .gitmodules URL. The dangling gitlink remains in the repository.
 
