@@ -1,9 +1,0 @@
-// SPDX-License-Identifier: GPL-3.0-only
-import { chromium } from 'playwright-core'
-import assert from 'node:assert/strict'
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'})
-try { for(const host of ['[::1]:5180','127.0.0.1:5174']) {
- const page=await browser.newPage({viewport:{width:1280,height:800}});await page.route('http://scores.test/**',r=>r.fulfill({path:'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz',headers:{'access-control-allow-origin':'*'}}));await page.addInitScript(()=>localStorage.setItem('musescoreweb:settings',JSON.stringify({project:{migration:{Pre_3_6:{appVersion:470,isApplyMigration:false,isAskAgain:false},Ver_3_6:{appVersion:470,isApplyMigration:false,isAskAgain:false}}}})));await page.goto(`http://${host}/?url=http://scores.test/test.mscz`);await page.waitForSelector('.page canvas');await page.waitForTimeout(10000)
- const open=async()=>{await page.getByRole('menuitem',{name:'Format',exact:true}).click();await page.getByRole('menuitem',{name:'Style…',exact:true}).click();await page.getByRole('option',{name:'Dynamics & hairpins',exact:true}).click()};await open()
- const input=page.getByTitle('Horizontal offset').first();await input.fill('1.5');await input.press('Tab');await page.getByRole('button',{name:'OK',exact:true}).click();await open();assert.equal(Number(await page.getByTitle('Horizontal offset').first().inputValue()),1.5);await page.getByTitle('Horizontal offset').first().fill('2.5');await page.getByTitle('Horizontal offset').first().press('Tab');await page.getByRole('button',{name:'Cancel',exact:true}).click();await open();assert.equal(Number(await page.getByTitle('Horizontal offset').first().inputValue()),1.5);await page.getByRole('button',{name:'Cancel',exact:true}).click();console.log(host,'offset persistence and cancel passed');await page.close()
-} } finally {await browser.close()}

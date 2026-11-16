@@ -5,6 +5,10 @@ dist-editor/
 /compare-out/
 /out/
 *.log
+*.tmp
+/test-results/
+.output/
+.nuxt/
 .DS_Store
 _site/
 /.claude/worktrees/

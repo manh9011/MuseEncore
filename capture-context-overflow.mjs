@@ -1,8 +1,0 @@
-import {chromium} from 'playwright-core'
-import {PNG} from 'pngjs'
-import pixelmatch from 'pixelmatch'
-import fs from 'node:fs'
-import assert from 'node:assert/strict'
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'})
-for(const [name,host] of [['react','[::1]:5180'],['vue','127.0.0.1:5174']]) {const page=await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:1});await page.route('http://scores.test/**',r=>r.fulfill({path:'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz',headers:{'access-control-allow-origin':'*'}}));await page.addInitScript(()=>localStorage.setItem('musescoreweb:settings',JSON.stringify({project:{migration:{Pre_3_6:{appVersion:470,isApplyMigration:false,isAskAgain:false},Ver_3_6:{appVersion:470,isApplyMigration:false,isAskAgain:false}}}})));await page.goto(`http://${host}/?url=http://scores.test/test.mscz`);await page.waitForSelector('.page canvas',{timeout:30000});await page.waitForTimeout(10000);await page.mouse.click(630,268);await page.setViewportSize({width:390,height:844});await page.waitForTimeout(500);await page.mouse.click(345,530,{button:'right'});console.log(name,await page.locator('[role=menu]').allTextContents());await page.screenshot({path:`context-overflow-${name}.png`});await page.close()}
-const a=PNG.sync.read(fs.readFileSync('context-overflow-react.png')),b=PNG.sync.read(fs.readFileSync('context-overflow-vue.png')),diff=new PNG({width:a.width,height:a.height});console.log('different',pixelmatch(a.data,b.data,diff.data,a.width,a.height));fs.writeFileSync('context-overflow-diff.png',PNG.sync.write(diff));await browser.close()
