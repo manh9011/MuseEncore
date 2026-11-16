@@ -1,5 +1,8 @@
 # Work history
 
+## GitHub Pages checkout
+- Disabled submodule checkout: MuseScore build assets are tracked directly, while the unrelated upstream/muse-encore gitlink has no .gitmodules URL. The dangling gitlink remains in the repository.
+
 ## Repository cleanup
 - Cleaned up 3,082 transient AI-generated artifacts used during the React-to-Vue port (2,094 comparison PNGs, 940 .mjs measurement/trace scripts, 18 .tmp server logs, 24 test .mscx/.mscz fixtures, 2 .txt logs, 2 .ts throwaway scripts, react-error.html, and visual-parity-checklist.md).
 - Updated .gitignore to ignore `*.tmp`, `/test-results/`, `.output/`, and `.nuxt/`.
