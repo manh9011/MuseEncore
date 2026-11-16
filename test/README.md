@@ -1,11 +1,11 @@
 # Tests
 
-Test scores come from the MuseScore submodule (`git submodule update --init`): the v4.7.5 vtest scores
+Test scores include the tracked MuseScore v4.7.5 reference files: the vtest scores
 (`MuseScore/vtest/scores`) and demos (`MuseScore/demos`), plus real-world scores in `mscz-test-files/`.
 
 | Command | What | Needs |
 |---|---|---|
-| `npm test` | library: reading, layout, drawing, SVG, font fallback, regressions | submodule |
+| `npm test` | library: reading, layout, drawing, SVG, font fallback, regressions | tracked reference scores |
 | `npm run test:e2e` | web viewer in headless Chrome | Google Chrome (`CHROME_PATH` for another binary) |
 | `npm run compare:all` | every page against MuseScore 4.7.5, compared with `test/compare-baseline.csv` | MuseScore 4.7.5 app |
 | `npm run compare -- <file>` | one score against MuseScore, with diff images (red = only MuseScore, blue = only port) | MuseScore 4.7.5 app |

@@ -5,7 +5,7 @@ them out, MuseScore's continuous views, zoom, printing (vector pages), full scre
 (`.musicxml`/`.xml`/`.mxl`), MIDI (`.mid`/`.midi`/`.kar`), Capella (`.cap`/`.capx`), Guitar Pro
 (`.gtp`/`.gp3`/`.gp4`/`.gp5`/`.gpx`/`.gp`) and Power Tab (`.ptb`) files are imported like MuseScore Studio's File > Open.
 
-It is based on [MuseEncore](https://github.com/pstaender/muse-encore), a TypeScript port of MuseScore Studio's
+It is based on [MuseEncore](https://github.com/manh9011/MuseEncore), a TypeScript port of MuseScore Studio's
 engraving engine (reference version 4.7.5). Everything runs in the browser; no server is needed.
 
 > **MuseEncore is neither an official MuseScore project nor a fork of MuseScore.** It is an independent
@@ -121,4 +121,4 @@ GPL-3.0-only, like MuseScore Studio. The fonts have their own licenses (see `fon
 In the repository: `npm run build:viewer-package` builds this package into `packages/viewer` (the module, its
 type declarations, the fonts and the license); then `npm publish` there. `packages/viewer/example/` shows a few
 viewers on a page (`npx vite packages/viewer`, then open `/example/?url=<score>`); it is online at
-[pstaender.github.io/muse-encore/viewer-package/example/](https://pstaender.github.io/muse-encore/viewer-package/example/).
+[manh9011.github.io/MuseEncore/viewer-package/example/](https://manh9011.github.io/MuseEncore/viewer-package/example/).

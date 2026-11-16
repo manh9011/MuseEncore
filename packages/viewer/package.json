@@ -33,11 +33,11 @@
     "score viewer",
     "engraving"
   ],
-  "homepage": "https://pstaender.github.io/muse-encore/",
+  "homepage": "https://manh9011.github.io/MuseEncore/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pstaender/muse-encore.git",
+    "url": "git+https://github.com/manh9011/MuseEncore.git",
     "directory": "packages/viewer"
   },
-  "bugs": "https://github.com/pstaender/muse-encore/issues"
+  "bugs": "https://github.com/manh9011/MuseEncore/issues"
 }

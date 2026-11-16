@@ -6,15 +6,12 @@ the desktop app. License: GPL-3.0-only (same as MuseScore).
 MuseEncore (the editor; with MuseEncore Viewer) is neither an official MuseScore project nor an official fork;
 "MuseScore" only names the original software. The project was called "MuseScore Web" before: the browser storage
 keys and database names (`musescoreweb:*`, `musescoreweb-scores`, `musescore-web-viewer`) keep that name so existing
-users keep their data. The repository is https://github.com/pstaender/muse-encore (GitHub Pages:
-https://pstaender.github.io/muse-encore/); the local checkout directory may still be called musescoreweb.
+users keep their data. The repository is https://github.com/manh9011/MuseEncore (GitHub Pages:
+https://manh9011.github.io/MuseEncore/); the local checkout directory may still be called musescoreweb.
 
 ## Reference sources
 
-- `./MuseScore` is a git submodule pinned to the reference version v4.7.5
-  (`git submodule update --init`; shallow). Read the sources there directly, e.g.
-  `MuseScore/src/engraving/rendering/score/chordlayout.cpp`. When updating the reference, move the submodule
-  to the new tag and follow the changes file by file.
+- `./MuseScore` contains tracked reference assets from MuseScore v4.7.5. The full C++ source tree is not included; obtain the reference source separately when comparing implementation files.
 - MuseScore 4.7.5 is installed at `/Applications/MuseScore 4.app`; use it to create reference renders:
   `"/Applications/MuseScore 4.app/Contents/MacOS/mscore" -o out.svg file.mscz` (SVG has a CSS class per element type)
   or `-r 100 -o out.png` for PNGs.
@@ -167,7 +164,7 @@ methods keep their C++ names, so changes in MuseScore can be followed file by fi
   ./fonts; `/embed.html?url=<score>&options=<JSON>` shows the package API); `npm run build:viewer` builds it into dist-viewer/
 - `npm run build:viewer-package` - the npm package muse-encore-viewer in packages/viewer (publish from there)
 - `npm run dev:editor` - the editor (same options); `npm run build:editor` builds it into dist-editor/
-  (it bundles MuseScore's templates from `MuseScore/share/templates`, so the submodule is needed)
+  (it bundles MuseScore's templates from `MuseScore/share/templates`, so the tracked reference assets are needed)
 - `npm run render -- <file.mscz> <out-prefix> [dpi | svg]` - render pages to PNG (or SVG) in node
 - `npm run compare -- <file.mscz> [out-dir] [dpi]` - render with MuseScore and with this port and diff the PNGs
   (red = only MuseScore, blue = only port). For exact numbers compare with MuseScore's SVG export, which uses

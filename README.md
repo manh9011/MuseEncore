@@ -1,71 +1,53 @@
 # MuseEncore
 
-### A browser-native port of MuseScore
+MuseEncore brings music notation to the browser. It ports MuseScore Studio's engraving engine from C++ to TypeScript, using MuseScore 4.7.5 as its reference. Open, edit, render and play scores without installing a desktop application.
 
-* [Run the Editor right now in your browser](https://pstaender.github.io/muse-encore/editor/)
-* [Run the Viewer right now in your browser](https://pstaender.github.io/muse-encore/viewer/)
-* [Scores embedded in a web page with the viewer package](https://pstaender.github.io/muse-encore/viewer-package/example/)
+- [Editor](https://manh9011.github.io/MuseEncore/editor/)
+- [Viewer](https://manh9011.github.io/MuseEncore/viewer/)
+- [Embedded viewer example](https://manh9011.github.io/MuseEncore/viewer-package/example/)
+- [Project home](https://manh9011.github.io/MuseEncore/)
+- [Source and issues](https://github.com/manh9011/MuseEncore)
 
-Overview of demos: [pstaender.github.io/muse-encore](https://pstaender.github.io/muse-encore/)
+GitHub Pages links require Pages to be enabled for this repository with GitHub Actions as the deployment source.
 
-A port of [MuseScore Studio](https://github.com/musescore/MuseScore)'s source code from C++ to TypeScript, to create a
-web-native version of MuseScore that runs entirely in the browser. The engraving engine is translated file by file
-and keeps the structure, class and method names of the original, so that `.mscz`/`.mscx` files are laid out and
-rendered like in the desktop app. MusicXML, MIDI, Capella, Guitar Pro and Power Tab files are imported like in
-MuseScore, and scores can be exported as PDF, PNG, SVG, MIDI, MusicXML and MuseScore files. The reference is MuseScore
-Studio 4.7.5 (included as a git submodule).
+MuseEncore is an independent project, not an official MuseScore product or fork. It builds on the original MuseEncore project by Philipp Staender and MuseScore Studio's open-source code. MuseScore is a name of the original software; this project is not affiliated with or endorsed by MuseScore Limited or the MuseScore project.
 
-> **MuseEncore is neither an official MuseScore project nor a fork of MuseScore.** It is an independent
-> port of MuseScore Studio's open source code and is not affiliated with or endorsed by MuseScore Limited or the
-> MuseScore project. "MuseScore" is used here only to name the original software this project is based on.
+## Features
 
-- **MuseEncore Viewer** (`viewer/`): opens, displays and plays scores. It is also available as the npm package
-  [muse-encore-viewer](packages/viewer/README.md), to show scores in any web page like an inline PDF viewer
-  ([example](https://pstaender.github.io/muse-encore/viewer-package/example/)).
-- **MuseEncore** (`editor/`): a score editor based on the viewer.
+- Edit and view MuseScore `.mscz` and `.mscx` scores in the browser.
+- Import MusicXML, MIDI, Capella, Guitar Pro and Power Tab; export PDF, PNG, SVG, MIDI, MusicXML and MuseScore files.
+- Display paged and continuous layouts, zoom, print and play scores.
+- Detect notes from a microphone for note input and playalong in the editor.
+- Embed the viewer in another site; see [viewer package documentation](packages/viewer/README.md).
 
-This is a vibe-coded project: the code is written with an AI coding assistant. Its functionality is tested at a
-high level by a human, in addition to the automated tests that compare every page with MuseScore's own output.
-Future versions are planned to stay in sync with the original MuseScore project. The web UI is built with React.
-
-Like MuseScore, this project is licensed under the GNU General Public License v3.0 (see [LICENSE](LICENSE)).
-
-## Differences from MuseScore
-
-* Note detection from the microphone (not in MuseScore yet): the editor detects the notes you play, enters them into
-  the score in note input mode and offers a playalong mode that follows the score while you play. Everything is
-  processed in the browser.
-* Continuous view (see the screenshots below):
-  * a different look (in my opinion, a better one)
-  * an additional "fit to window" mode, which lays out the score as wide as the window
-* Space: in the editor, holding Space and dragging moves the score, and Shift+Space starts and stops the playback
-  (both can be changed in the settings). In the viewer, Space starts and stops the playback, and holding Space while
-  dragging moves the score.
-
-<img width="1616" height="648" alt="Screenshot 2026-10-23 at 11 03 02" src="https://github.com/user-attachments/assets/7901780a-4f20-412c-8dac-33f057f1deb5" />
-<img width="1573" height="799" alt="Screenshot 2026-10-23 at 11 04 20" src="https://github.com/user-attachments/assets/e3f33b44-9f1b-49f9-a225-95449a9bb388" />
-
-
-## Missing parts
-
-A list of the parts that are not ported yet will follow.
-
-## Browser compatibility
-
-Tested on desktop with:
-
-* Firefox
-* Chrome
-* Safari (partly: the playback works only in part)
+The engraving engine follows MuseScore's structure and naming. Rendering and compatibility remain works in progress and may differ from MuseScore Studio.
 
 ## Getting started
 
+Install Node.js 24 and npm, then run:
+
 ```sh
-git clone --recurse-submodules <repository>
-npm install
-npm run dev:viewer        # viewer
-npm run dev:editor        # editor
-npm test                  # library tests
+git clone https://github.com/manh9011/MuseEncore.git
+cd MuseEncore
+npm ci
+npm run dev:editor
 ```
 
-See [CLAUDE.md](CLAUDE.md) for the project structure and commands and [test/README.md](test/README.md) for the tests.
+Use `npm run dev:viewer` for the standalone viewer. Open the local URL printed by Vite. MuseScore reference assets used by the applications and tests are tracked in this repository; recursive submodule checkout is not needed for these commands.
+
+## Development
+
+```sh
+npm run typecheck
+npm test
+npm run test:e2e
+npm run build:editor
+npm run build:viewer
+npm run build:viewer-package
+```
+
+See [AGENTS.md](AGENTS.md) for project structure, reference sources and additional commands, and [test/README.md](test/README.md) for test requirements. Visual comparisons require MuseScore Studio 4.7.5 installed locally. The GitHub Pages workflow builds the editor, viewer and viewer-package example; enable Pages under repository Settings before deploying.
+
+## License
+
+GPL-3.0-only; see [LICENSE](LICENSE). Fonts and other bundled assets have their own licenses in their respective directories.

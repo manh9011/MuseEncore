@@ -1,5 +1,8 @@
 # Work history
 
+## Repository documentation
+- Updated project links and package metadata for manh9011/MuseEncore; refreshed setup, deployment and test documentation while retaining upstream attribution.
+
 ## Viewer package build
 - Use the installed TypeScript 5 compiler without unsupported CLI options; invoke it through Node on Windows and Linux.
 
@@ -1222,7 +1225,7 @@
 - The measure number is a MeasureNumber (the score's measure number style: font, size, color, offset), above the topmost
   staff whose number is in the view (drawContinuousPanel takes the view's top). Softer, wider shadow.
 - .github/workflows/pages.yml builds the viewer and the editor (with the submodule: templates, translations, soundfont)
-  for https://pstaender.github.io/musescoreweb/ (viewer/, editor/, landing page .github/pages/index.html); README links.
+  for the original project GitHub Pages site (viewer/, editor/, landing page .github/pages/index.html); README links.
 
 ### Viewer: continuous views, drop highlight
 
