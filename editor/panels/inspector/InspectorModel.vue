@@ -71,7 +71,7 @@ function colorValue(value: InspectorValue | null): string {
   return value.length === 9 && value.startsWith('#') ? `#${value.slice(3)}` : value || '#000000'
 }
 function visibleProperties() { return Object.entries(props.model.properties).filter(([name, p]) => p.isVisible && !p.hidden && (props.showMoreOnly ? p.showMore : !p.showMore) && !(props.model.sectionType === 'SECTION_TEXT' && ['fontFamily', 'fontStyle', 'fontSize', 'symbolSize', 'symbolScale', 'isSizeSpatiumDependent', 'textScriptAlignment'].includes(name)) && !(props.model.modelType === 'TYPE_HAIRPIN' && props.model.flags.isLineType && ['isNienteCircleVisible', 'allowDiagonal', 'height', 'continuousHeight'].includes(name))) }
-function columns() { return props.model.sectionType === 'SECTION_GENERAL' ? 'grid grid-cols-2 gap-2' : 'space-y-2' }
+function columns() { return props.model.sectionType === 'SECTION_GENERAL' ? 'insp-grid2' : 'insp-column' }
 function arrange(command: InspectorArrangeCommand) {
   const score = currentScore()
   if (score && applyInspectorChanges(score, inspectorArrangeChanges(score, command))) scoreChanged()
@@ -220,52 +220,48 @@ function generalLabel(name: string): string {
   </div>
   <div v-else :class="columns()">
     <div :class="model.sectionType === 'SECTION_GENERAL' && model.flags.areGeneralPropertiesAvailable === false ? 'inspector-general-controls-disabled' : ''">
-      <div :class="model.sectionType === 'SECTION_GENERAL' ? 'grid grid-cols-2 gap-2' : ''">
+      <div :class="model.sectionType === 'SECTION_GENERAL' ? 'insp-grid2' : 'insp-column'">
         <template v-for="([name, property]) in visibleProperties()" :key="name">
-          <div v-if="(name !== 'showStemSlash' || model.flags.showStemSlashVisible) && !(model.sectionType === 'SECTION_TEXT' && property.showMore)" class="flex items-center gap-2">
-            <UCheckbox v-if="typeof property.value === 'boolean'" :model-value="property.isUndefined ? 'indeterminate' : property.invert ? !property.value : property.value"
+          <div v-if="(name !== 'showStemSlash' || model.flags.showStemSlashVisible) && !(model.sectionType === 'SECTION_TEXT' && property.showMore)" class="insp-property insp-generic-property">
+            <label v-if="typeof property.value === 'boolean'" class="insp-checkbox"><input type="checkbox" :checked="property.invert ? !property.value : property.value" :indeterminate="property.isUndefined"
           :disabled="!property.isEnabled || property.enabled === false || (name === 'showStemSlash' && !model.flags.showStemSlashEnabled)"
-          :label="model.sectionType === 'SECTION_GENERAL' ? generalLabel(name) : label(name, property)"
-          @update:model-value="v => change(name, property.invert ? v !== true : v === true)" />
+          @change="change(name, property.invert ? !($event.target as HTMLInputElement).checked : ($event.target as HTMLInputElement).checked)" /><span>{{ model.sectionType === 'SECTION_GENERAL' ? generalLabel(name) : label(name, property) }}</span></label>
         <template v-else-if="property.options?.length && property.optionsMode === 'select' && property.value && typeof property.value === 'object' && 'step' in property.value">
           <label>{{ label(name) }}</label>
-          <USelect :model-value="ornamentParts(property.value).step" :items="intervalItems('step')" :disabled="!property.isEnabled" size="xs"
-            :aria-label="`${label(name)} ${qtrc('inspector', 'Interval')}`" @update:model-value="v => change(name, { step: Number(v), type: ornamentParts(property.value).type } as InspectorValue)" />
-          <USelect v-if="property.showIntervalType" :model-value="ornamentParts(property.value).type" :items="intervalItems('type')" :disabled="!property.isEnabled" size="xs"
-            :aria-label="`${label(name)} ${qtrc('inspector', 'Interval quality')}`" @update:model-value="v => change(name, { step: ornamentParts(property.value).step, type: Number(v) } as InspectorValue)" />
+          <select class="insp-dropdown" :value="ornamentParts(property.value).step" :disabled="!property.isEnabled"
+            :aria-label="`${label(name)} ${qtrc('inspector', 'Interval')}`" @change="change(name, { step: Number(($event.target as HTMLSelectElement).value), type: ornamentParts(property.value).type } as InspectorValue)"><option v-for="item in intervalItems('step')" :key="item.value" :value="item.value">{{ item.label }}</option></select>
+          <select v-if="property.showIntervalType" class="insp-dropdown" :value="ornamentParts(property.value).type" :disabled="!property.isEnabled"
+            :aria-label="`${label(name)} ${qtrc('inspector', 'Interval quality')}`" @change="change(name, { step: ornamentParts(property.value).step, type: Number(($event.target as HTMLSelectElement).value) } as InspectorValue)"><option v-for="item in intervalItems('type')" :key="item.value" :value="item.value">{{ item.label }}</option></select>
         </template>
         <template v-else-if="property.options?.length && property.optionsMode === 'select'">
           <label class="flex-1">{{ label(name) }}</label>
-          <USelect :model-value="property.value === null ? undefined : property.value as string | number | boolean"
-            :items="property.options.map(o => ({ label: o.text ?? o.title ?? String(o.value), value: o.value }))"
-            :disabled="!property.isEnabled || property.enabled === false" size="xs" @update:model-value="v => change(name, v as InspectorValue)" />
+          <select class="insp-dropdown" :value="property.value" :disabled="!property.isEnabled || property.enabled === false" :aria-label="label(name)" @change="change(name, property.options?.find(o => String(o.value) === ($event.target as HTMLSelectElement).value)?.value)"><option v-for="option in property.options" :key="String(option.value)" :value="String(option.value)">{{ option.text ?? option.title ?? String(option.value) }}</option></select>
         </template>
         <template v-else-if="property.options?.length">
           <label class="flex-1">{{ label(name) }}</label>
-          <div class="flex flex-wrap gap-1" role="radiogroup" :aria-label="label(name)" @keydown="radioKeydown">
-            <UButton v-for="option in property.options" :key="String(option.value)" size="xs" color="neutral"
-              :variant="property.value === option.value ? 'solid' : 'outline'" role="radio"
+          <div class="insp-radio-group insp-radio-grid" role="radiogroup" :aria-label="label(name)" @keydown="radioKeydown">
+            <button v-for="option in property.options" :key="String(option.value)" type="button" class="insp-radio" role="radio"
               :tabindex="(property.value === option.value || (property.value == null && property.options?.[0] === option)) ? 0 : -1"
               :aria-checked="property.value === option.value" :aria-label="option.title ?? option.text ?? String(option.value)"
               :disabled="!property.isEnabled || property.enabled === false" @click="change(name, option.value)">
               {{ option.text ?? option.title ?? String(option.value) }}
-            </UButton>
+            </button>
           </div>
         </template>
         <template v-else-if="property.point && property.value && typeof property.value === 'object' && 'x' in property.value">
           <label class="flex-1">{{ label(name, property) }}</label>
-          <span class="flex items-center gap-1">x <UInputNumber :model-value="property.value.x" :disabled="!property.isEnabled" size="xs" :aria-label="`${label(name)} x`" @update:model-value="v => { if (v !== null) change(name, { ...property.value as object, x: v } as InspectorValue) }" /></span>
-          <span v-if="model.flags.isVerticalOffsetAvailable !== false" class="flex items-center gap-1">y <UInputNumber :model-value="property.value.y" :disabled="!property.isEnabled" size="xs" :aria-label="`${label(name)} y`" @update:model-value="v => { if (v !== null) change(name, { ...property.value as object, y: v } as InspectorValue) }" /></span>
+          <div class="insp-row"><InspectorSpin :value="property.value.x" :disabled="!property.isEnabled" :label="`${label(name)} x`" @commit="v => change(name, { ...property.value as object, x: v } as InspectorValue)" />
+          <InspectorSpin v-if="model.flags.isVerticalOffsetAvailable !== false" :value="property.value.y" :disabled="!property.isEnabled" :label="`${label(name)} y`" @commit="v => change(name, { ...property.value as object, y: v } as InspectorValue)" /></div>
           <span v-if="property.unit">{{ property.unit }}</span>
         </template>
         <template v-else-if="property.editor === 'color'">
           <label class="flex-1">{{ label(name) }}</label>
-          <input type="color" :value="colorValue(property.value)" :disabled="!property.isEnabled || property.enabled === false"
+          <input class="insp-color" type="color" :value="colorValue(property.value)" :disabled="!property.isEnabled || property.enabled === false"
             @change="e => change(name, (e.target as HTMLInputElement).value)" />
         </template>
         <template v-else-if="name === 'tempo' && model.modelType.startsWith('TYPE_TEMPO') && property.isVisible">
           <label class="flex-1">{{ qtrc('inspector', 'Override written tempo') }}</label>
-          <UInputNumber :model-value="Number(property.value)" :disabled="!property.isEnabled" :min="1" :max="999" :step="1" size="xs" :aria-label="qtrc('inspector', 'Override written tempo')" @update:model-value="v => { if (v !== null) change(name, v) }" />
+          <InspectorSpin :value="Number(property.value)" :disabled="!property.isEnabled" :min="1" :max="999" :step="1" :label="qtrc('inspector', 'Override written tempo')" @commit="v => change(name, v)" />
           <span>{{ qtrc('inspector', 'BPM') }}</span>
         </template>
         <template v-else-if="typeof property.value === 'number'">
@@ -275,10 +271,10 @@ function generalLabel(name: string): string {
         </template>
         <template v-else-if="typeof property.value === 'string'">
           <label class="flex-1">{{ label(name) }}</label>
-          <UInput :model-value="property.value" :disabled="!property.isEnabled || property.enabled === false" size="xs" @input="(e: Event) => (e.target as HTMLInputElement).setCustomValidity('')" @change="(e: Event) => model.modelType === 'TYPE_VOLTA' && name === 'endings' ? commitEndings((e.target as HTMLInputElement).value) : change(name, (e.target as HTMLInputElement).value)" />
+          <input class="insp-text" :value="property.value" :aria-label="label(name)" :disabled="!property.isEnabled || property.enabled === false" @input="(e: Event) => (e.target as HTMLInputElement).setCustomValidity('')" @change="(e: Event) => model.modelType === 'TYPE_VOLTA' && name === 'endings' ? commitEndings((e.target as HTMLInputElement).value) : change(name, (e.target as HTMLInputElement).value)" />
         </template>
-        <UButton v-if="property.isModified" size="xs" color="neutral" variant="ghost" icon="i-lucide-rotate-ccw"
-          :aria-label="qtrc('inspector', 'Reset property to default value')" :disabled="!property.isEnabled" @click="change(name)" />
+        <button v-if="property.isModified" type="button" class="insp-reset"
+          :aria-label="qtrc('inspector', 'Reset property to default value')" :disabled="!property.isEnabled" @click="change(name)">{{ String.fromCodePoint(ICON_CODES.UNDO) }}</button>
           </div>
         </template>
       </div>
@@ -305,7 +301,7 @@ function generalLabel(name: string): string {
       <button type="button" class="insp-expand" :aria-expanded="headExpanded" @click="headExpanded = !headExpanded"><span class="insp-arrow" aria-hidden="true">{{ String.fromCodePoint(ICON_CODES.SMALL_ARROW_DOWN) }}</span>{{ qtrc('inspector', headExpanded ? 'Show less' : 'Show more') }}</button>
       <InspectorModel v-if="headExpanded" :model="model" :section="section" :path="path" show-more-only />
     </div>
-    <section v-for="child in model.sectionType === 'SECTION_GENERAL' ? [] : model.models" :key="child.key" class="space-y-2">
+    <section v-for="child in model.sectionType === 'SECTION_GENERAL' ? [] : model.models" :key="child.key" class="insp-column">
       <h4 v-if="child.title">{{ child.title }}</h4>
       <InspectorModel :model="child" :section="section" :path="[...path, child.key]" :show-more-only="showMoreOnly" />
     </section>

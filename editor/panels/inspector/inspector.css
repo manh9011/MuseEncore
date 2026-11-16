@@ -2,6 +2,7 @@
 /* the Properties panel (MuseScore's InspectorForm: 12px margins and spacing, 30px controls, bold section titles) */
 
 .inspector {
+    container-type: inline-size;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -68,7 +69,7 @@
 
 .insp-grid2 {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px 4px;
     align-items: center;
 }
@@ -87,6 +88,10 @@
     min-width: 0;
 }
 
+.insp-generic-property { position: relative; }
+.insp-generic-property > .insp-reset { position: absolute; top: 0; inset-inline-end: 0; }
+.insp-generic-property:has(> .insp-reset) > label:first-child { padding-inline-end: 24px; }
+
 .insp-property-title {
     display: flex;
     align-items: center;
@@ -94,7 +99,7 @@
     min-height: 20px;
 }
 
-.insp-property-title > :first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.insp-property-title > :first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
 .insp-row.insp-untitled { align-items: center; }
 .insp-row.insp-untitled > .insp-reset { flex: 0 0 20px; }
@@ -122,7 +127,8 @@
 }
 
 .insp-checkbox input { width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
-.insp-checkbox span { overflow-wrap: anywhere; }
+.insp-checkbox { overflow-wrap: anywhere; }
+.insp-checkbox span { min-width: 0; }
 
 /* PropertyToggle: a switch */
 .insp-toggle {
@@ -231,6 +237,14 @@
     min-width: 0;
 }
 
+.insp-radio-group.insp-radio-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: auto;
+}
+
+.insp-radio-grid .insp-radio { min-height: 30px; white-space: normal; overflow-wrap: anywhere; }
+
 .insp-radio {
     flex: 1;
     min-width: 0;
@@ -239,6 +253,24 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.insp-radio-group:has(.insp-radio:not(.insp-icon)) { height: auto; min-height: 30px; }
+.insp-radio-group:has(.insp-radio:not(.insp-icon)) .insp-radio { min-height: 30px; }
+
+@container (max-width: 180px) {
+    .insp-flat-button { height: auto; min-height: 30px; min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+    .insp-button-icon { flex: 0 0 16px; }
+    .insp-radio-group:has(.insp-radio:not(.insp-icon)) {
+        height: auto;
+        flex-wrap: wrap;
+    }
+    .insp-radio-group:has(.insp-radio:not(.insp-icon)) .insp-radio {
+        flex: 1 1 45%;
+        min-height: 30px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
 }
 
 .insp-radio.insp-icon { font-family: "MusescoreIcon"; font-size: 16px; }

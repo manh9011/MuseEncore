@@ -696,6 +696,325 @@ describe.skipIf(!CHROME || !hasSubmodule)('editor', () => {
         await context.close()
     }, 180000)
 
+    it('keeps generic marker options readable and editable in Properties', async () => {
+        const { page, context } = await newPage()
+        await context.unroute(`${SCORE_HOST}**`)
+        await context.route(`${SCORE_HOST}**`, route => route.fulfill({
+            body: readFileSync(`${ROOT}MuseScore/vtest/scores/system-1.mscx`), headers: { 'access-control-allow-origin': '*' },
+        }))
+        await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}marker.mscx`)}`)
+        await scoreShown(page)
+        await page.click('#panel-tab-inspectorPanel')
+        await page.mouse.click(892, 260)
+        await page.waitForFunction(() => document.getElementById('status')?.textContent?.startsWith('Marker:'))
+        const options = page.getByRole('radiogroup', { name: 'marker Type' })
+        await options.waitFor()
+        expect(await options.locator('[role="radio"]').count()).toBeGreaterThan(6)
+        expect(await options.locator('[role="radio"]').evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth && button.scrollHeight <= button.clientHeight))).toBe(true)
+        await page.locator('.inspector').evaluate(el => { (el as HTMLElement).style.width = '120px' })
+        expect(await options.locator('[role="radio"]').evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth && button.scrollHeight <= button.clientHeight))).toBe(true)
+        await page.locator('.inspector').evaluate(el => { (el as HTMLElement).style.width = '170px' })
+        expect(await options.locator('[role="radio"]').evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth && button.scrollHeight <= button.clientHeight))).toBe(true)
+        await options.getByRole('radio', { name: 'Coda', exact: true }).click()
+        expect(await options.getByRole('radio', { name: 'Coda', exact: true }).getAttribute('aria-checked')).toBe('true')
+        expect(await page.textContent('#status')).toContain('Marker: Coda')
+        const property = options.locator('..')
+        const reset = property.getByRole('button', { name: 'Reset property to default value' })
+        await reset.waitFor()
+        const overlap = await property.evaluate(el => {
+            const label = el.querySelector('label')!.getBoundingClientRect()
+            const button = el.querySelector('.insp-reset')!.getBoundingClientRect()
+            return label.right - 24 > button.left + 1 && label.left < button.right && label.top < button.bottom && label.bottom > button.top
+        })
+        expect(overlap).toBe(false)
+        await reset.click()
+        expect(await page.textContent('#status')).toContain('Marker: Fine')
+        await context.close()
+    }, 180000)
+
+    it.each([
+        { file: 'MuseScore/vtest/scores/mmrest-10.mscx', name: 'Jump', x: 917, y: 255, next: true, zoom: 0 },
+        { file: 'mscz-test-files/Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.mscz', name: 'Dynamic', x: 506, y: 584, next: false, zoom: 3 },
+    ])('keeps $name Properties controls within the panel', async ({ file, name, x, y, next, zoom }) => {
+        const { page, context } = await newPage()
+        await context.unroute(`${SCORE_HOST}**`)
+        await context.route(`${SCORE_HOST}**`, route => route.fulfill({ body: readFileSync(`${ROOT}${file}`), headers: { 'access-control-allow-origin': '*' } }))
+        await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}fixture.${file.endsWith('.mscz') ? 'mscz' : 'mscx'}`)}`)
+        await scoreShown(page)
+        await page.click('#panel-tab-inspectorPanel')
+        if (next) await page.getByRole('button', { name: 'Jump to next page' }).click()
+        for (let i = 0; i < zoom; i++) await page.getByRole('button', { name: 'Zoom in' }).click()
+        await page.mouse.click(x, y)
+        await page.waitForFunction(expected => document.getElementById('status')?.textContent?.toLowerCase().includes(expected.toLowerCase()), name)
+        const inspector = page.locator('.inspector')
+        for (const button of await inspector.getByRole('button', { name: 'Show more' }).all()) {
+            if (await button.isVisible()) await button.click()
+        }
+        expect(await inspector.locator('.insp-property, .insp-radio-group, .insp-checkbox, .insp-spinbox').evaluateAll(elements =>
+            elements.filter(e => e.getClientRects().length > 0).every(e => e.scrollWidth <= e.clientWidth + 2))).toBe(true)
+        await context.close()
+    }, 180000)
+
+    it('keeps representative score-element Properties controls within the panel', async () => {
+        const fixtures = [
+            ['small-1.mscx', 415, 350, 'Ambitus'], ['harmony-10.mscx', 328, 402, 'Bracket'],
+            ['harmony-2.mscx', 875, 287, 'Fretboard diagram'], ['gliss-1.mscx', 740, 374, 'Glissando'],
+            ['harmony-2.mscx', 500, 443, 'Chord symbol'], ['barline-2.mscx', 775, 320, 'Horizontal frame'],
+            ['system-1.mscx', 431, 351, 'Instrument name'], ['small-1.mscx', 586, 390, 'Extension line'],
+            ['measure-repeat-3.mscx', 606, 378, 'Measure repeat'], ['mmrest-10.mscx', 580, 335, 'Multimeasure rest'],
+            ['ottava.mscx', 800, 363, 'Ottava'], ['symbol-1.mscx', 510, 520, 'Symbol'],
+            ['line-1.mscx', 650, 282, 'Text line'], ['small-1.mscx', 663, 294, 'Trill'],
+            ['line-3.mscx', 650, 230, 'Volta'], ['barline-1.mscx', 580, 228, 'Treble clef'],
+            ['barline-1.mscx', 700, 227, 'Rest'], ['chord-layout-12.mscx', 463, 440, 'Lyrics'],
+            ['slurs-1.mscx', 525, 313, 'Slur'], ['system-1.mscx', 660, 272, 'Tempo'],
+            ['tie-1.mscx', 584, 323, 'Tie'], ['tuplets-1.mscx', 640, 372, 'Tuplet'],
+        ] as const
+        const { page, context } = await newPage()
+        await context.unroute(`${SCORE_HOST}**`)
+        for (const [file, x, y, name] of fixtures) {
+            await context.unroute(`${SCORE_HOST}**`)
+            await context.route(`${SCORE_HOST}**`, route => route.fulfill({ body: readFileSync(`${ROOT}MuseScore/vtest/scores/${file}`), headers: { 'access-control-allow-origin': '*' } }))
+            await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}fixture.mscx`)}`)
+            await scoreShown(page)
+            await page.click('#panel-tab-inspectorPanel')
+            await page.mouse.click(x, y)
+            await page.waitForFunction(expected => document.getElementById('status')?.textContent?.startsWith(expected), name)
+            const inspector = page.locator('.inspector')
+            for (const button of await inspector.getByRole('button', { name: 'Show more' }).all()) {
+                if (await button.isVisible()) await button.click()
+            }
+            for (const width of [null, 170]) {
+                await inspector.evaluate((el, w) => { (el as HTMLElement).style.width = w ? `${w}px` : '' }, width)
+                const overflow = await inspector.locator('.insp-property, .insp-radio-group, .insp-checkbox, .insp-spinbox').evaluateAll(elements =>
+                    elements.filter(e => e.getClientRects().length > 0 && (e.scrollWidth > e.clientWidth + 2 || e.scrollHeight > e.clientHeight + 2)).map(e => e.textContent?.trim()))
+                expect(overflow, `${name}, width ${width ?? 'default'}`).toEqual([])
+                const clipped = await inspector.locator('.insp-radio:not(.insp-icon), .insp-property-title > :first-child, .insp-flat-button').evaluateAll(elements => {
+                    const canvas = document.createElement('canvas')
+                    const context = canvas.getContext('2d')!
+                    return elements.filter(e => {
+                        if (!e.getClientRects().length) return false
+                        const style = getComputedStyle(e)
+                        if (e.classList.contains('insp-radio') && e.closest('.insp-radio-grid')) return e.scrollHeight > e.clientHeight + 2
+                        if (e.classList.contains('insp-flat-button')) {
+                            const range = document.createRange()
+                            for (const node of [...e.childNodes].filter(node => !(node instanceof HTMLElement && node.classList.contains('insp-button-icon')))) range.selectNode(node)
+                            const rects = [...range.getClientRects()]
+                            const box = e.getBoundingClientRect()
+                            const style = getComputedStyle(e)
+                            const left = box.left + parseFloat(style.paddingLeft)
+                            const right = box.right - parseFloat(style.paddingRight)
+                            return rects.some(rect => rect.left < left || rect.right > right || rect.top < box.top || rect.bottom > box.bottom)
+                        }
+                        context.font = style.font
+                        const textWidth = context.measureText(e.textContent ?? '').width
+                        return style.whiteSpace === 'nowrap' && style.textOverflow === 'ellipsis' && textWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 2 && style.whiteSpace === 'nowrap'
+                    }).map(e => e.textContent?.trim())
+                })
+                expect(clipped, `${name}, width ${width ?? 'default'}`).toEqual([])
+            }
+        }
+        await context.close()
+    }, 240000)
+
+    it('keeps additional score-element Properties controls within the panel', async () => {
+        const fixtures = [
+            ['MuseScore/src/engraving/tests/expression_data/expression-1-ref.mscx', 680, 235, 'Expression'],
+            ['MuseScore/src/engraving/tests/tempomap_data/gradual_tempo_change_rallentando/gradual_tempo_change_rallentando.mscx', 630, 220, 'Vertical frame'],
+            ['MuseScore/src/engraving/tests/tempomap_data/gradual_tempo_change_rallentando/gradual_tempo_change_rallentando.mscx', 909, 243, 'Gradual tempo change'],
+            ['MuseScore/src/engraving/tests/all_elements_data/layout_elements.mscx', 879, 224, 'Staff type change'],
+            ['MuseScore/src/importexport/musicxml/tests/data/testTboxWords1.mscx', 750, 264, 'Text frame'],
+            ['MuseScore/vtest/scores/disabled/tremolo-1.mscx', 620, 306, 'Tremolo'],
+            ['MuseScore/vtest/scores/disabled/tremolo-1.mscx', 701, 277, 'Tremolo'],
+            ['MuseScore/src/engraving/tests/midi/midirenderer_data/hammer_on_pull_off.mscx', 700, 234, 'Hammer-on'],
+        ] as const
+        const { page, context } = await newPage()
+        for (const [file, x, y, name] of fixtures) {
+            await context.unroute(`${SCORE_HOST}**`)
+            await context.route(`${SCORE_HOST}**`, route => route.fulfill({ body: readFileSync(`${ROOT}${file}`), headers: { 'access-control-allow-origin': '*' } }))
+            await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}fixture.mscx`)}`)
+            await scoreShown(page)
+            await page.click('#panel-tab-inspectorPanel')
+            await page.mouse.click(x, y)
+            await page.waitForFunction(expected => document.getElementById('status')?.textContent?.startsWith(expected), name)
+            const inspector = page.locator('.inspector')
+            for (const button of await inspector.getByRole('button', { name: 'Show more' }).all()) {
+                if (await button.isVisible()) await button.click()
+            }
+            for (const width of [null, 170, 120]) {
+                await inspector.evaluate((el, w) => { (el as HTMLElement).style.width = w ? `${w}px` : '' }, width)
+                const overflow = await inspector.locator('.insp-property, .insp-radio-group, .insp-checkbox, .insp-spinbox').evaluateAll(elements =>
+                    elements.filter(e => e.getClientRects().length > 0 && (e.scrollWidth > e.clientWidth + 2 || e.scrollHeight > e.clientHeight + 2)).map(e => e.textContent?.trim()))
+                expect(overflow, `${name}, width ${width ?? 'default'}`).toEqual([])
+                const clipped = await inspector.locator('.insp-radio:not(.insp-icon), .insp-property-title > :first-child').evaluateAll(elements => {
+                    const canvas = document.createElement('canvas')
+                    const context = canvas.getContext('2d')!
+                    return elements.filter(e => {
+                        if (!e.getClientRects().length) return false
+                        const style = getComputedStyle(e)
+                        if (e.classList.contains('insp-radio') && e.closest('.insp-radio-grid')) return e.scrollHeight > e.clientHeight + 2
+                        context.font = style.font
+                        const width = context.measureText(e.textContent ?? '').width
+                        return e.scrollHeight > e.clientHeight + 2 || style.textOverflow === 'ellipsis' && width > e.clientWidth + 1
+                    }).map(e => e.textContent?.trim())
+                })
+                expect(clipped, `${name}, width ${width ?? 'default'}`).toEqual([])
+            }
+        }
+        await context.close()
+    }, 240000)
+
+    it('checks note, beam and rest Properties tabs for clipping', async () => {
+        const { page, context } = await newPage()
+        await context.unroute(`${SCORE_HOST}**`)
+        await context.route(`${SCORE_HOST}**`, route => route.fulfill({ body: readFileSync(`${ROOT}MuseScore/src/engraving/tests/all_elements_data/layout_elements.mscx`), headers: { 'access-control-allow-origin': '*' } }))
+        await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}all-elements.mscx`)}`)
+        await scoreShown(page)
+        await page.click('#panel-tab-inspectorPanel')
+        const selected = await page.evaluate(async () => {
+            const view = await (new Function('return import("/scoreview.ts")')() as Promise<typeof import('../../editor/scoreview')>)
+            const score = view.currentScore()!
+            const target = new Map<string, import('../../src/engraving/dom/engravingitem').EngravingItem>()
+            score.scanElements(item => {
+                if (item.isNote()) {
+                    const chord = (item as import('../../src/engraving/dom/note').Note).chord()
+                    if (chord && !target.has('TYPE_NOTE')) target.set('TYPE_NOTE', item)
+                    if (chord?.beam() && !target.has('TYPE_BEAM')) target.set('TYPE_BEAM', item)
+                    if (chord?.stem() && !target.has('TYPE_STEM')) target.set('TYPE_STEM', item)
+                }
+                if (item.isRest() && !target.has('TYPE_REST')) target.set('TYPE_REST', item)
+                if (item.isTuplet() && !target.has('TYPE_TUPLET')) target.set('TYPE_TUPLET', item)
+            })
+            return [...target].map(([type, item]) => ({ type, typeName: item.typeName(), track: item.track(), tick: item.tick().toString() }))
+        })
+        expect(selected.map(entry => entry.type)).toContain('TYPE_NOTE')
+        for (const { type, typeName, track, tick } of selected) {
+            const selectedNow = await page.evaluate(async targetInfo => {
+                const view = await (new Function('return import("/scoreview.ts")')() as Promise<typeof import('../../editor/scoreview')>)
+                const score = view.currentScore()!
+                let target: import('../../src/engraving/dom/engravingitem').EngravingItem | undefined
+                score.scanElements(item => {
+                    if (target || item.track() !== targetInfo.track || item.tick().toString() !== targetInfo.tick) return
+                    if (targetInfo.type === 'TYPE_TUPLET' ? item.typeName() === targetInfo.typeName : item.isNote() || item.isRest()) target = item
+                })
+                if (!target) return false
+                score.select(target)
+                view.selectionChanged()
+                return true
+            }, { type, typeName, track, tick })
+            expect(selectedNow, `${type} element remains in score`).toBe(true)
+            await page.waitForTimeout(100)
+            const noteTabs = page.locator('.inspector [data-view="NoteSettings"] [role="tab"]')
+            if (type === 'TYPE_BEAM') await noteTabs.filter({ hasText: 'Beam' }).click()
+            else if (type === 'TYPE_STEM') await noteTabs.filter({ hasText: 'Stem' }).click()
+            else if (type === 'TYPE_NOTE') await noteTabs.filter({ hasText: 'Head' }).click()
+            else if (type === 'TYPE_REST') await page.locator('.inspector [role="tab"]').filter({ hasText: 'Rest' }).click()
+            await page.waitForTimeout(50)
+            if (type === 'TYPE_TUPLET') expect(await page.locator('.inspector [data-section="SECTION_NOTATION"] .insp-property').count()).toBeGreaterThan(0)
+            const inspector = page.locator('.inspector')
+            for (const button of await inspector.getByRole('button', { name: 'Show more' }).all()) {
+                if (await button.isVisible()) await button.click()
+            }
+            for (const width of [null, 170]) {
+                await inspector.evaluate((el, w) => { (el as HTMLElement).style.width = w ? `${w}px` : '' }, width)
+                const overflow = await inspector.locator('.insp-property, .insp-radio-group, .insp-checkbox, .insp-spinbox, .insp-radio').evaluateAll(elements =>
+                    elements.filter(e => e.getClientRects().length > 0 && (e.scrollWidth > e.clientWidth + 2 || e.scrollHeight > e.clientHeight + 2)).map(e => e.textContent?.trim()))
+                expect(overflow, `${type}, width ${width ?? 'default'}`).toEqual([])
+            }
+        }
+        await context.close()
+    }, 180000)
+
+    it('renders additional element Properties without container overflow', async () => {
+        const fixtures = [
+            ['timesig-1.mscz', 'TimeSig'], ['custom-keysig-1.mscx', 'KeySig'],
+            ['accidental-1.mscx', 'Accidental'], ['fermata.mscz', 'Fermata'],
+            ['hairpins-1.mscx', 'HairPin'], ['vibrato-1.mscz', 'Vibrato'],
+            ['image-1.mscx', 'Image'],
+            ['section-break-courtesies.mscz', 'LayoutBreak'],
+            ['lv-ties.mscz', 'LaissezVib'], ['partialTieEndAlignment.mscz', 'PartialTie'],
+            ['system-1.mscx', 'BarLine'],
+            ['chordBrackets.mscz', 'ChordBracket'],
+            ['../../src/engraving/tests/copypastesymbollist_data/copypastesymbollist-articulation-ref.mscx', 'Articulation'],
+        ] as const
+        const { page, context } = await newPage()
+        for (const [file, type] of fixtures) {
+            await context.unroute(`${SCORE_HOST}**`)
+            await context.route(`${SCORE_HOST}**`, route => route.fulfill({ body: readFileSync(`${ROOT}MuseScore/vtest/scores/${file}`), headers: { 'access-control-allow-origin': '*' } }))
+            await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}fixture.${file.split('.').pop()}`)}`)
+            await scoreShown(page)
+            await page.click('#panel-tab-inspectorPanel')
+            const found = await page.evaluate(async typeName => {
+                const view = await (new Function('return import("/scoreview.ts")')() as Promise<typeof import('../../editor/scoreview')>)
+                const score = view.currentScore()!
+                let item: Parameters<typeof score.select>[0] = null
+                score.scanElements(element => {
+                    if (item) return
+                    if (element.typeName() === typeName) item = element
+                    else if (element.isNote() && typeName === 'LaissezVib') item = (element as import('../../src/engraving/dom/note').Note).laissezVib()
+                    else if (element.isNote() && typeName === 'PartialTie') item = (element as import('../../src/engraving/dom/note').Note).outgoingPartialTie() ?? (element as import('../../src/engraving/dom/note').Note).incomingPartialTie()
+                })
+                if (!item) item = score.spannerMap().all().find(element => element.typeName() === typeName)?.spannerSegments()[0] ?? null
+                if (!item) return false
+                score.select(item)
+                view.selectionChanged()
+                return true
+            }, type)
+            expect(found, `${file}: ${type}`).toBe(true)
+            await page.waitForTimeout(200)
+            expect(await page.locator('.inspector [data-section="SECTION_NOTATION"]').count(), `${type}: notation section`).toBeGreaterThan(0)
+            const inspector = page.locator('.inspector')
+            for (const button of await inspector.getByRole('button', { name: 'Show more' }).all()) {
+                if (await button.isVisible()) await button.click()
+            }
+            const popup = inspector.locator('[data-section="SECTION_NOTATION"] .insp-popup-button > button').first()
+            if (await popup.isVisible().catch(() => false)) await popup.click()
+            expect(await inspector.locator('[data-section="SECTION_NOTATION"] .insp-property, [data-section="SECTION_NOTATION"] .insp-checkbox').count(), `${type}: notation controls`).toBeGreaterThan(0)
+            for (const width of [null, 170]) {
+                await inspector.evaluate((el, w) => { (el as HTMLElement).style.width = w ? `${w}px` : '' }, width)
+                const overflow = await inspector.locator('.insp-property, .insp-radio-group, .insp-checkbox, .insp-spinbox, .insp-radio').evaluateAll(elements =>
+                    elements.filter(e => e.getClientRects().length > 0 && (e.scrollWidth > e.clientWidth + 2 || e.scrollHeight > e.clientHeight + 2)).map(e => `${e.className}: ${e.textContent?.trim()}`))
+                expect(overflow, `${type}, width ${width ?? 'default'}`).toEqual([])
+            }
+        }
+        await context.close()
+    }, 240000)
+
+    it.each(['vi', 'de', 'ar'])('keeps translated marker options readable in %s', async language => {
+        const { page, context } = await newPage()
+        await context.addInitScript(lang => {
+            const key = 'musescoreweb:settings'
+            const settings = JSON.parse(localStorage.getItem(key) ?? '{}')
+            settings.ui = { ...settings.ui, language: lang }
+            localStorage.setItem(key, JSON.stringify(settings))
+        }, language)
+        await context.unroute(`${SCORE_HOST}**`)
+        await context.route(`${SCORE_HOST}**`, route => route.fulfill({ body: readFileSync(`${ROOT}MuseScore/vtest/scores/system-1.mscx`), headers: { 'access-control-allow-origin': '*' } }))
+        await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}marker.mscx`)}`)
+        await scoreShown(page)
+        await page.click('#panel-tab-inspectorPanel')
+        const found = await page.evaluate(async () => {
+            const view = await (new Function('return import("/scoreview.ts")')() as Promise<typeof import('../../editor/scoreview')>)
+            const score = view.currentScore()!
+            let marker: Parameters<typeof score.select>[0] = null
+            score.scanElements(element => { if (!marker && element.typeName() === 'Marker') marker = element })
+            if (!marker) return false
+            score.select(marker)
+            view.selectionChanged()
+            return true
+        })
+        expect(found).toBe(true)
+        const options = page.locator('.insp-radio-grid')
+        await options.waitFor()
+        if (language === 'ar') expect(await page.locator('html').getAttribute('dir')).toBe('rtl')
+        await page.locator('.inspector').evaluate(el => { (el as HTMLElement).style.width = '170px' })
+        const clipped = await options.locator('[role="radio"]').evaluateAll(buttons => buttons.filter(button => button.scrollWidth > button.clientWidth || button.scrollHeight > button.clientHeight).map(button => button.textContent))
+        expect(clipped).toEqual([])
+        await page.evaluate(() => { document.documentElement.dir = 'rtl' })
+        const rtlClipped = await options.locator('[role="radio"]').evaluateAll(buttons => buttons.filter(button => button.scrollWidth > button.clientWidth || button.scrollHeight > button.clientHeight).map(button => button.textContent))
+        expect(rtlClipped).toEqual([])
+        await context.close()
+    }, 180000)
+
     it('shows the panels Palettes, Layout and Properties, toggled by the View menu and shortcuts', async () => {
         const { page, context } = await newPage()
         await page.goto(`${base}?url=${encodeURIComponent(`${SCORE_HOST}amazing.mscz`)}`)
