@@ -1,5 +1,8 @@
 # Work history
 
+## Project maintainer
+- Updated visible maintainer credits to manh9011; retained original authorship and copyright notices.
+
 ## Repository documentation
 - Updated project links and package metadata for manh9011/MuseEncore; refreshed setup, deployment and test documentation while retaining upstream attribution.
 

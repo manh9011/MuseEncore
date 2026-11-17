@@ -10,7 +10,7 @@ MuseEncore brings music notation to the browser. It ports MuseScore Studio's eng
 
 GitHub Pages links require Pages to be enabled for this repository with GitHub Actions as the deployment source.
 
-MuseEncore is an independent project, not an official MuseScore product or fork. It builds on the original MuseEncore project by Philipp Staender and MuseScore Studio's open-source code. MuseScore is a name of the original software; this project is not affiliated with or endorsed by MuseScore Limited or the MuseScore project.
+MuseEncore is an independent project, not an official MuseScore product or fork. Maintained by manh9011, it builds on the original MuseEncore project by Philipp Staender and MuseScore Studio's open-source code. MuseScore is a name of the original software; this project is not affiliated with or endorsed by MuseScore Limited or the MuseScore project.
 
 ## Features
 
